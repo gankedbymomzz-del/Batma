@@ -4,7 +4,7 @@ export default function Ghost({ def, size = 120, silhouette = false }) {
     <img
       className={`ghost-img ${silhouette ? 'sil' : ''}`}
       src={def.img}
-      alt={silhouette ? 'Ma chưa bắt' : def.name}
+      alt={silhouette ? 'Ma chưa bắt' : 'Ma'}
       width={size}
       height={Math.round(size * def.ratio)}
       draggable={false}

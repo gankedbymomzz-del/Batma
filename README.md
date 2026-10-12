@@ -36,13 +36,15 @@ Chưa bật bước này game vẫn chơi được, người chơi ở chế đ�
 | Vuốt bùa lên phía ma | Ném bùa, ném lúc vòng tròn **xanh lá** để tỷ lệ ×1.8 |
 | Phong ấn thành công | Tiếng chiêng, vòng ấn chú, dấu triện 封印, +XP, hồi 1 Dương khí |
 | **Bắt hụt** | Bùa cháy rụi, ma **nổi điên**: nhạc dồn dập, chỉ còn **5 giây** |
-| Hết giờ | Ma lao tới hù, mất 1 Dương khí |
+| Hết giờ | Ma lao thẳng vào mặt kèm **tiếng hét kinh dị**, mất 1 Dương khí |
 | Cạn 3 Dương khí | Bị trừ 100 XP, thắp nhang để hồi dương |
 
 Nhạc nền tự đổi theo tình huống: **yên ắng** (dò ma) → **tim đập** (gặp ma) → **trống dồn dập + tiếng rít tăng dần** (5 giây cuối).
 Thỉnh thoảng có tiếng thì thầm, tiếng gõ cửa, hộp nhạc lạc tông, bóng ma loé lên ở mép màn hình. Nút 🔊 để tắt tiếng.
 
 ## 4. Danh sách ma
+
+Trong game **không hiện tên**, người chơi chỉ thấy hình. Tên dưới đây để bạn quản lý trong `src/ghosts.js`.
 
 | Ma | Độ hiếm | Thời gian trước khi tấn công |
 |---|---|---|
@@ -59,6 +61,7 @@ Thỉnh thoảng có tiếng thì thầm, tiếng gõ cửa, hộp nhạc lạc 
 | Thêm ma mới | Ảnh PNG/WebP nền trong suốt vào `public/ghosts/`, khai báo trong `src/ghosts.js` |
 | Số giây khi nổi điên, XP bị trừ, thời gian lao tới | Đầu file `src/App.jsx` |
 | Nhạc nền, âm thanh | `src/lib/music.js`, `src/lib/sound.js` |
+| Tiếng hét khi bị tấn công | Thay file `public/sfx/scream.mp3` (giữ nguyên tên) |
 | Số bùa, số Dương khí | `src/lib/storage.js` |
 | Luật chống hack điểm | `api/score.js` |
 

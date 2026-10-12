@@ -188,20 +188,21 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
 /* Hù doạ */
 .jumpscare {
   position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden;
-  background: #000; animation: scareBg 1.3s steps(1) forwards;
+  background: #000; animation: scareBg 2.1s steps(1) forwards;
 }
 .jumpscare img {
   position: absolute; left: 50%; top: -3%; width: 150vw; max-width: none; height: auto;
   transform: translateX(-50%); transform-origin: 50% 0;
   filter: contrast(1.5) saturate(1.6) brightness(1.1) drop-shadow(0 0 40px #b3121b);
-  animation: scareImg 1.3s ease-out forwards;
+  animation: scareImg 2.1s ease-out forwards;
 }
-@keyframes scareBg { 0% { background: #fff; } 6% { background: #000; } 50% { background: #300; } 100% { background: #000; } }
+@keyframes scareBg { 0% { background: #fff; } 4% { background: #000; } 35% { background: #300; } 40% { background: #000; } 60% { background: #300; } 100% { background: #000; } }
 @keyframes scareImg {
   0% { transform: translateX(-50%) scale(1.4); opacity: 1; }
-  10% { transform: translateX(-52%) scale(1.05); }
-  20% { transform: translateX(-48%) scale(1.12); }
-  80% { opacity: 1; }
+  6% { transform: translateX(-52%) scale(1.05); }
+  12% { transform: translateX(-48%) scale(1.12); }
+  50% { transform: translateX(-51%) scale(1.18); }
+  85% { opacity: 1; }
   100% { transform: translateX(-50%) scale(1.2); opacity: 0; }
 }
 

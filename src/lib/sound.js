@@ -2,6 +2,7 @@
 let ctx = null;
 let noiseBuf = null;
 let bus = null;
+let screamBuf = null;
 const MUTE_KEY = 'san-ma-muted';
 let muted = (() => { try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; } })();
 
@@ -31,11 +32,21 @@ export function unlockAudio() {
       comp.threshold.value = -14;
       comp.ratio.value = 5;
       bus.connect(comp).connect(ctx.destination);
+      loadScream();
     }
     if (ctx.state === 'suspended') ctx.resume();
   } catch {
     ctx = null;
   }
+}
+
+// Tiếng hét thật (file mp3 tổng hợp sẵn) — nạp trước để phát ngay lúc hù
+async function loadScream() {
+  try {
+    const r = await fetch('/sfx/scream.mp3');
+    const ab = await r.arrayBuffer();
+    screamBuf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));
+  } catch { screamBuf = null; }
 }
 
 export function pauseAudio(hidden) {
@@ -126,6 +137,18 @@ export const sfx = {
     tone(65, 0.9, { type: 'sawtooth', vol: 0.1, to: 380 });
   },
   scream: () => {
+    if (screamBuf && ctx && !muted) {
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = screamBuf;
+        const g = ctx.createGain();
+        g.gain.value = 1.25;
+        src.connect(g).connect(ctx.destination); // đi thẳng ra loa, không qua bộ nén cho to nhất
+        src.start();
+        tone(40, 1.6, { vol: 0.45, to: 26, attack: 0.005 });
+        return;
+      } catch { /* dùng tiếng hét tổng hợp bên dưới */ }
+    }
     noise(1.2, { vol: 0.6, freq: 2400, q: 1.1, to: 800, attack: 0.005 });
     tone(880, 1.1, { type: 'sawtooth', vol: 0.22, to: 160, attack: 0.005 });
     tone(1180, 1.0, { type: 'square', vol: 0.1, to: 260, attack: 0.005 });

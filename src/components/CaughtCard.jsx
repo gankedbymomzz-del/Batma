@@ -10,8 +10,7 @@ export default function CaughtCard({ data, onClose }) {
         <div className="seal-bg" />
         {isNew && <div className="badge-new">Mới vào Sổ Ma</div>}
         <div className="caught-ghost"><Ghost def={def} size={110} /></div>
-        <p className="caught-title">Phong ấn thành công</p>
-        <h2>{def.name}</h2>
+        <h2>Phong ấn thành công</h2>
         <span className="rarity-chip">{r.label}</span>
         <p className="desc">{def.desc}</p>
         <div className="rewards">

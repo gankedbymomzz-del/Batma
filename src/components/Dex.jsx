@@ -20,7 +20,6 @@ export default function Dex({ save, onClose }) {
         {sel ? (
           <div className="dex-detail" style={{ '--rc': RARITY[sel.rarity].color }}>
             <Ghost def={sel} size={110} />
-            <h3>{sel.name}</h3>
             <span className="rarity-chip">{RARITY[sel.rarity].label}</span>
             <p className="desc">{sel.desc}</p>
             <p className="meta">Đã phong ấn: {caught[sel.id]} lần</p>
@@ -40,8 +39,8 @@ export default function Dex({ save, onClose }) {
                 >
                   <span className="no">{i + 1}</span>
                   <Ghost def={g} size={48} silhouette={!n} />
-                  <b>{n ? g.name : '???'}</b>
-                  <small>{n ? `×${n}` : RARITY[g.rarity].label}</small>
+                  <b>{n ? RARITY[g.rarity].label : '???'}</b>
+                  {n > 0 && <small>×{n}</small>}
                 </button>
               );
             })}

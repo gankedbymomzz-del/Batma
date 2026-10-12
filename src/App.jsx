@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { RARITY, TALISMANS, GHOSTS, pickGhost } from './ghosts.js';
+import { TALISMANS, GHOSTS, pickGhost } from './ghosts.js';
 import { cameraDirection, wrap180, requestOrientationPermission } from './lib/orientation.js';
 import { sfx, unlockAudio, pauseAudio, isMuted, setMuted } from './lib/sound.js';
 import { music } from './lib/music.js';
@@ -23,7 +23,7 @@ const GHOST_PX = 120;       // bề rộng ma chuẩn (px)
 const HORIZON = 0.42;       // vị trí đường chân trời
 const FRENZY_SEC = 5;       // bắt hụt → chỉ còn 5 giây
 const RUSH_MS = 900;        // thời gian ma lao tới
-const SCARE_MS = 1400;      // thời gian hù doạ
+const SCARE_MS = 2100;      // thời gian hù doạ (khớp tiếng hét)
 const SEAL_MS = 1700;       // thời gian hiệu ứng phong ấn
 const DEATH_XP = 100;       // XP bị trừ khi cạn dương khí
 
@@ -408,7 +408,7 @@ export default function App() {
           setPhase('dead');
         } else {
           setSave((s) => ({ ...s, hp }));
-          showToast(`Bị ${g.def.name} tấn công, mất 1 dương khí`, 2200);
+          showToast('Bạn bị tấn công, mất 1 dương khí', 2200);
           setPhase('scan');
         }
       }, SCARE_MS);
@@ -673,11 +673,6 @@ export default function App() {
                 className={`ghost-wrap ${phase === 'attack' ? 'rushing' : ''} ${frenzy ? 'mad' : ''}`}
                 style={{ width: ghostW, height: ghostH }}
               >
-                {phase === 'hunt' && !frenzy && (
-                  <div className="ghost-tag" style={{ '--rc': RARITY[ghost.rarity].color }}>
-                    {ghost.name}<em>{RARITY[ghost.rarity].label}</em>
-                  </div>
-                )}
                 <div
                   ref={ringRef}
                   className="ring"
