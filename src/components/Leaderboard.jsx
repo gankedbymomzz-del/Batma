@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { nameKey } from '../lib/storage.js';
 import { GHOSTS } from '../ghosts.js';
+import { titleFor } from '../titles.js';
 
 export default function Leaderboard({ player, onClose }) {
   const [state, setState] = useState({ loading: true });
@@ -40,7 +41,7 @@ export default function Leaderboard({ player, onClose }) {
             {d.top.map((r) => (
               <li key={r.key} className={`${r.key === myKey ? 'me' : ''} top${r.rank}`}>
                 <span className="rk">{r.rank}</span>
-                <span className="nm">{r.name}<small>Cấp {r.level} · {r.species}/{GHOSTS.length} loài</small></span>
+                <span className="nm">{r.name}<small>{titleFor(r.nights)} · {r.nights > 0 ? `Qua ${r.nights} đêm` : 'Chưa qua đêm nào'} · {r.species}/{GHOSTS.length} loài</small></span>
                 <span className="sc">{r.xp.toLocaleString('vi-VN')}<small>XP</small></span>
               </li>
             ))}

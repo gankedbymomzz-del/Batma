@@ -10,20 +10,21 @@ export default async function handler(req, res) {
     for (let i = 0; i < flat.length; i += 2) keys.push(flat[i]);
 
     const me = req.query?.name ? keyOf(req.query.name) : null;
-    const cmds = keys.map((k) => ['HMGET', `p:${k}`, 'name', 'xp', 'level', 'species', 'total']);
+    const cmds = keys.map((k) => ['HMGET', `p:${k}`, 'name', 'xp', 'level', 'species', 'total', 'nights']);
     cmds.push(['ZCARD', 'lb']);
     if (me) cmds.push(['ZREVRANK', 'lb', me], ['ZSCORE', 'lb', me]);
     const out = await pipeline(cmds);
 
     const top = keys.map((k, i) => {
-      const [name, xp, level, species, total] = out[i] || [];
-      return { rank: i + 1, key: k, name: name || k, xp: Number(xp) || 0, level: Number(level) || 1, species: Number(species) || 0, total: Number(total) || 0 };
+      const [name, xp, level, species, total, nights] = out[i] || [];
+      return { rank: i + 1, key: k, name: name || k, xp: Number(xp) || 0, level: Number(level) || 1, species: Number(species) || 0, total: Number(total) || 0, nights: Number(nights) || 0 };
     });
     const players = out[keys.length] || 0;
     let mine = null;
     if (me) {
       const r = out[keys.length + 1];
-      if (r != null) mine = { rank: r + 1, xp: Number(out[keys.length + 2]) || 0, key: me };
+      const score = Number(out[keys.length + 2]) || 0;
+      if (r != null) mine = { rank: r + 1, xp: score % 1e7, nights: Math.floor(score / 1e7), key: me };
     }
 
     res.setHeader('Cache-Control', 's-maxage=5, stale-while-revalidate=10');

@@ -170,6 +170,14 @@ export const sfx = {
     const p = side();
     [0, 0.22, 0.44].forEach((d) => { tone(170, 0.09, { type: 'triangle', vol: 0.18, delay: d, pan: p, attack: 0.003 }); noise(0.05, { vol: 0.1, freq: 900, q: 3, delay: d, pan: p }); });
   },
+  bell: () => {
+    [[1046, 0.16], [1568, 0.1], [2093, 0.07], [2794, 0.05], [3520, 0.03]].forEach(([f, v]) =>
+      tone(f, 2.6, { vol: v, to: f * 0.995, attack: 0.003 }));
+    tone(523, 2.8, { vol: 0.08, attack: 0.003 });
+  },
+  mirror: () => [1319, 1568, 1976, 2637, 3136].forEach((f, i) => tone(f, 0.9, { type: 'triangle', vol: 0.05, delay: i * 0.07 })),
+  lamp: () => { noise(0.25, { vol: 0.18, freq: 3000, q: 1.5, to: 800 }); noise(1.2, { vol: 0.05, freq: 900, q: 0.7, type: 'lowpass', delay: 0.15 }); },
+  coin: () => { tone(1568, 0.12, { type: 'triangle', vol: 0.08, attack: 0.003 }); tone(2349, 0.25, { type: 'triangle', vol: 0.07, delay: 0.07, attack: 0.003 }); },
   revive: () => [196, 262, 330].forEach((f, i) => tone(f, 0.5, { vol: 0.09, delay: i * 0.18 })),
   refill: () => [392, 523].forEach((f, i) => tone(f, 0.25, { vol: 0.08, delay: i * 0.12 })),
 };

@@ -22,6 +22,7 @@ export default function Dex({ save, onClose }) {
             <Ghost def={sel} size={110} />
             <span className="rarity-chip">{RARITY[sel.rarity].label}</span>
             <p className="desc">{sel.desc}</p>
+            {sel.hint && <p className="dex-hint"><b>Chiêu:</b> {sel.hint}</p>}
             <p className="meta">Đã phong ấn: {caught[sel.id]} lần</p>
             <button className="btn-ghost" onClick={() => setSel(null)}>Quay lại</button>
           </div>

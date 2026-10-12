@@ -556,3 +556,175 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
   .app.near .cam, .app.frenzy .stage, .vignette::after, .ghost-wrap.mad .ghost-haunt, .scare-glitch, .subliminal { animation: none !important; }
   .subliminal { display: none; }
 }
+
+/* ================== HỆ THỐNG ĐÊM ================== */
+.night-pill {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border-radius: 999px; padding: 5px 14px 5px 12px;
+  backdrop-filter: blur(6px);
+}
+.night-num { font-weight: 800; font-size: 16px; color: var(--paper); white-space: nowrap; }
+.pips { display: flex; gap: 4px; flex-wrap: wrap; max-width: 120px; }
+.pips i {
+  width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg);
+  background: rgba(255, 255, 255, .15); transition: background .3s, box-shadow .3s;
+}
+.pips i.on { background: var(--paper); box-shadow: 0 0 8px var(--paper); }
+
+.night-modal { background: rgba(4, 0, 2, .88); }
+.night-card {
+  width: min(360px, 100%); text-align: center; padding: 30px 24px 24px;
+  border-radius: 22px; border: 1px solid rgba(242, 210, 122, .25);
+  background: linear-gradient(180deg, #170a10, #0b0609);
+  animation: nightIn .6s ease-out;
+}
+@keyframes nightIn { from { opacity: 0; transform: translateY(16px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.night-kicker { margin: 0; font-size: 14px; font-weight: 700; color: var(--muted); }
+.night-card h2 {
+  margin: 2px 0 0; font-size: 56px; line-height: 1; font-weight: 800; color: var(--paper);
+  text-shadow: 3px 3px 0 var(--blood), 0 0 30px rgba(179, 18, 27, .5);
+}
+.night-rules {
+  list-style: none; margin: 18px auto 22px; padding: 0; max-width: 30ch; text-align: left;
+  display: flex; flex-direction: column; gap: 8px; font-size: 15px; color: var(--muted);
+}
+.night-rules li { padding-left: 18px; position: relative; }
+.night-rules li::before {
+  content: ''; position: absolute; left: 0; top: .55em; width: 7px; height: 7px;
+  background: var(--blood-hi); transform: rotate(45deg);
+}
+.night-rules b { color: var(--text); }
+.dawn { background: radial-gradient(ellipse at 50% 120%, rgba(255, 170, 90, .35), rgba(10, 4, 8, .9) 60%); }
+.dawn .night-card h2 { color: #ffd9a0; text-shadow: 0 0 30px rgba(255, 180, 90, .6); }
+.night-card.failed { border-color: var(--blood); box-shadow: 0 0 80px rgba(179, 18, 27, .45); }
+.night-card.failed h2 { color: var(--blood-hi); font-size: 44px; }
+
+.dex-hint {
+  margin: 10px auto 0; max-width: 32ch; font-size: 14px; line-height: 1.5; text-align: left;
+  padding: 8px 12px; border-radius: 10px; background: rgba(179, 18, 27, .14); color: var(--text);
+}
+.dex-hint b { color: var(--blood-hi); }
+
+/* Bản giả: mờ hơn, mắt không sáng */
+.ghost-wrap.decoy .ghost-img { filter: saturate(.25) brightness(.72) contrast(1.05) drop-shadow(0 12px 24px rgba(0, 0, 0, .8)); }
+.ghost-wrap.real .ghost-img { will-change: opacity; }
+
+/* ================== VÀNG MÃ & PHÁP KHÍ ================== */
+.coin {
+  display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px;
+  background: linear-gradient(135deg, #ffe08a, #d79a1e); border: 1px solid #8a5a00;
+  transform: rotate(45deg); box-shadow: 0 0 6px rgba(255, 200, 80, .5);
+}
+.coin-pill {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px 10px; border-radius: 999px;
+  background: rgba(255, 200, 80, .12); color: #ffd98a; font-weight: 800; font-size: 14px;
+}
+.night-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.shop-btn { display: inline-flex; align-items: center; gap: 8px; border-color: rgba(255, 200, 80, .45); }
+
+.shop-sub { margin: 14px 0 8px; font-size: 14px; color: var(--muted); }
+.shop-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.shop-list li {
+  display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, .04);
+}
+.shop-icon { font-size: 28px; text-align: center; }
+.shop-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.shop-info b { font-size: 16px; }
+.shop-info small { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.shop-info em { font-style: normal; font-size: 12px; color: var(--paper); }
+.buy {
+  display: inline-flex; align-items: center; min-width: 64px; justify-content: center;
+  border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 15px;
+  background: var(--paper); color: #3a1608;
+}
+.buy:disabled { background: rgba(255, 255, 255, .1); color: var(--muted); }
+.buy:not(:disabled):active { transform: translateY(2px); }
+
+.item-bar {
+  position: absolute; left: 12px; top: calc(30% + var(--safe-top)); z-index: 5;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.item-btn {
+  position: relative; width: 46px; height: 46px; border-radius: 14px;
+  border: 1px solid rgba(242, 210, 122, .35); background: var(--panel); backdrop-filter: blur(6px);
+  font-size: 22px; line-height: 1; display: grid; place-items: center;
+}
+.item-btn b {
+  position: absolute; right: -5px; bottom: -5px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: var(--paper); color: #3a1608; font-size: 11px; line-height: 18px;
+}
+.item-btn:disabled { opacity: .35; }
+.item-btn:disabled b { background: #3a2c31; color: var(--muted); }
+.item-btn.active { border-color: #ffd166; box-shadow: 0 0 16px rgba(255, 209, 102, .7); animation: itemOn .8s ease-in-out infinite; }
+@keyframes itemOn { 50% { transform: scale(1.08); } }
+
+/* Chuông: ma đông cứng, ánh xanh lạnh */
+.fx-bell .ghost-wrap .ghost-haunt { animation: none; }
+.fx-bell .ghost-wrap .ghost-img { filter: saturate(0) brightness(1.1) drop-shadow(0 0 14px #9fd8ff) !important; }
+.fx-bell .vignette::after { opacity: .5 !important; box-shadow: inset 0 0 120px rgba(120, 190, 255, .6); animation: none !important; }
+.fx-bell .frenzy-count b { color: #9fd8ff; animation: none; }
+
+/* Gương: bản giả lộ hình, con thật sáng vàng */
+.fx-mirror .ghost-wrap.decoy .ghost-img { filter: grayscale(1) brightness(.5) sepia(1) hue-rotate(-50deg) saturate(3) !important; opacity: .45; }
+.fx-mirror .ghost-wrap.decoy::after {
+  content: '✕'; position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  font-size: 54px; font-weight: 800; color: var(--blood-hi); text-shadow: 0 0 12px #000;
+}
+.fx-mirror .ghost-wrap.real .ghost-img { filter: drop-shadow(0 0 18px #ffd166) drop-shadow(0 0 6px #fff) !important; }
+
+/* Đèn dầu: ánh vàng ấm quanh màn hình */
+.fx-lamp .vignette { background: radial-gradient(ellipse at 50% 42%, rgba(255, 170, 70, .12) 0%, transparent 45%, rgba(8, 0, 4, .8) 100%); }
+
+/* ================== TRÙM, CHUỖI, GIỜ THẬT, DANH HIỆU ================== */
+.ghost-wrap.boss .ghost-img {
+  filter: saturate(.6) contrast(1.35) brightness(.95) sepia(.35) hue-rotate(-25deg)
+    drop-shadow(0 0 26px rgba(255, 26, 26, .85)) drop-shadow(0 18px 30px #000);
+}
+.ghost-wrap.boss .ghost-haunt { animation: haunt 2.2s ease-in-out infinite, flicker 3s infinite; }
+.boss-bar {
+  position: absolute; left: 50%; top: calc(64px + var(--safe-top)); z-index: 6; transform: translateX(-50%);
+  display: flex; gap: 10px; padding: 6px 14px; border-radius: 999px;
+  background: rgba(40, 0, 6, .8); border: 1px solid rgba(255, 59, 59, .5); pointer-events: none;
+}
+.boss-bar i {
+  width: 22px; height: 30px; border-radius: 3px; border: 1.5px solid #6b2a2a; background: #2a1014;
+}
+.boss-bar i.now { border-color: var(--blood-hi); box-shadow: 0 0 10px var(--blood-hi); animation: itemOn .8s ease-in-out infinite; }
+.boss-bar i.done {
+  border-color: #a8461c; box-shadow: 0 0 10px rgba(255, 209, 102, .6);
+  background: linear-gradient(180deg, #fbf0cf, #e8c66a);
+}
+
+.streak-pill, .omen-pill {
+  align-self: flex-start; padding: 3px 12px; border-radius: 999px;
+  font-size: 13px; font-weight: 800; background: var(--panel);
+}
+.streak-pill { color: var(--text); border: 1px solid rgba(255, 209, 102, .5); }
+.streak-pill b { color: #ffd166; margin-left: 4px; }
+.omen-pill.witching { color: #c9a2ff; border: 1px solid rgba(201, 162, 255, .5); }
+.omen-pill.blood { color: var(--blood-hi); border: 1px solid rgba(255, 59, 59, .6); }
+
+.omen-banner {
+  margin: 12px auto 0; max-width: 32ch; padding: 8px 12px; border-radius: 10px;
+  font-size: 14px; line-height: 1.45; text-align: left;
+}
+.omen-banner.witching { background: rgba(120, 70, 200, .18); color: #e2d2ff; }
+.omen-banner.blood { background: rgba(179, 18, 27, .25); color: #ffd0cc; }
+.omen-banner b { font-weight: 800; }
+
+.title-up {
+  margin: 12px auto 0; padding: 8px 14px; border-radius: 12px; display: inline-block;
+  background: rgba(255, 209, 102, .14); border: 1px solid rgba(255, 209, 102, .5); font-size: 15px;
+}
+.title-up b { color: #ffd166; }
+
+.boss-night { background: radial-gradient(ellipse at 50% 30%, rgba(120, 0, 10, .55), rgba(4, 0, 2, .94) 70%); }
+.boss-night .night-card { border-color: rgba(255, 59, 59, .55); box-shadow: 0 0 70px rgba(179, 18, 27, .45); }
+.boss-night .night-card h2 { color: var(--blood-hi); }
+
+/* Giờ Tý: tối hơn, nhiễu hạt dày hơn | Trăng máu: nhuốm đỏ */
+.app.omen-witching .cam.on { filter: saturate(.15) contrast(1.25) brightness(.5) hue-rotate(200deg); }
+.app.omen-witching .grain { opacity: .15; }
+.app.omen-blood .vignette { background: radial-gradient(ellipse at 50% 42%, rgba(120, 0, 10, .12) 0%, transparent 40%, rgba(40, 0, 4, .88) 100%); }
+.app.omen-blood .cam.on { filter: saturate(.5) contrast(1.2) brightness(.6) sepia(.6) hue-rotate(-35deg); }
