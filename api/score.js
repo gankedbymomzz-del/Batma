@@ -1,7 +1,7 @@
 // POST /api/score { name, token, xp, total, species } — cập nhật điểm lên bảng xếp hạng
 import { hasDb, redis, pipeline, keyOf, hash, toObj, body, send, XP_PER_LEVEL } from './_lib/redis.js';
 
-const SPECIES_MAX = 5;
+const SPECIES_MAX = 20;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Chỉ hỗ trợ POST' });

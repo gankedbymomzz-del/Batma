@@ -18,7 +18,7 @@ export default function StartScreen({ player, onLogin, onLogout, onStart, starti
 
   return (
     <div className="start">
-      <div className="start-art"><Ghost def={GHOSTS[2]} size={120} /></div>
+      <div className="start-art"><Ghost def={GHOSTS[3]} size={120} /></div>
       <h1>Săn Ma</h1>
       <p className="tag">Chúng ở quanh bạn.<br />Phong ấn chúng trước khi chúng tìm đến bạn.</p>
 
@@ -53,9 +53,14 @@ export default function StartScreen({ player, onLogin, onLogout, onStart, starti
         </div>
       )}
 
+      <p className="warn">
+        Cảnh báo: âm thanh lớn, hình ảnh nhấp nháy và hù doạ bất ngờ. Không dành cho trẻ em,
+        người yếu tim hoặc nhạy cảm với ánh sáng nhấp nháy. Nên đeo tai nghe.
+      </p>
+
       <ul className="notes">
         <li>Bấm <b>Cho phép</b> khi được hỏi quyền Camera và Chuyển động</li>
-        <li>Ma đứng lâu không bị bắt sẽ lao tới tấn công, mất dương khí</li>
+        <li>Bắt hụt, ma nổi điên: bạn chỉ còn 5 giây trước khi nó lao tới</li>
         <li>Trên máy tính: kéo chuột hoặc dùng phím mũi tên</li>
       </ul>
     </div>

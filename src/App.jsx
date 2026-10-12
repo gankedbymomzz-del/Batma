@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { RARITY, TALISMANS, GHOSTS, pickGhost } from './ghosts.js';
 import { cameraDirection, wrap180, requestOrientationPermission } from './lib/orientation.js';
-import { sfx, unlockAudio } from './lib/sound.js';
+import { sfx, unlockAudio, pauseAudio, isMuted, setMuted } from './lib/sound.js';
+import { music } from './lib/music.js';
 import {
   loadSave, writeSave, levelFromXp, loadPlayer, savePlayer, getToken, setToken, MAX_HP,
 } from './lib/storage.js';
@@ -13,16 +14,18 @@ import Leaderboard from './components/Leaderboard.jsx';
 import StartScreen from './components/StartScreen.jsx';
 import CaughtCard from './components/CaughtCard.jsx';
 import DeadCard from './components/DeadCard.jsx';
+import SealFX from './components/SealFX.jsx';
 
 // ====== THÔNG SỐ GAME ======
-const FOV = 60;            // góc nhìn ngang của màn hình (độ)
-const RING_PERIOD = 1800;  // chu kỳ vòng tròn co lại (ms)
-const GHOST_PX = 120;      // bề rộng ma chuẩn (px)
-const HORIZON = 0.42;      // vị trí đường chân trời (tỷ lệ chiều cao)
-const RUSH_MS = 900;       // thời gian ma lao tới
-const SCARE_MS = 1300;     // thời gian hù doạ
-const DEATH_XP = 100;      // XP bị trừ khi cạn dương khí
-const ANGER_SEC = 4;       // bắt hụt → ma nổi giận, rút ngắn thời gian
+const FOV = 60;             // góc nhìn ngang (độ)
+const RING_PERIOD = 1800;   // chu kỳ vòng tròn co lại (ms)
+const GHOST_PX = 120;       // bề rộng ma chuẩn (px)
+const HORIZON = 0.42;       // vị trí đường chân trời
+const FRENZY_SEC = 5;       // bắt hụt → chỉ còn 5 giây
+const RUSH_MS = 900;        // thời gian ma lao tới
+const SCARE_MS = 1400;      // thời gian hù doạ
+const SEAL_MS = 1700;       // thời gian hiệu ứng phong ấn
+const DEATH_XP = 100;       // XP bị trừ khi cạn dương khí
 
 const ZONE = {
   great: { mult: 1.8, label: 'Tuyệt vời!' },
@@ -43,20 +46,24 @@ export default function App() {
   const [starting, setStarting] = useState(false);
   const [camOk, setCamOk] = useState(false);
   const [dragHint, setDragHint] = useState(false);
-  const [phase, setPhaseState] = useState('scan'); // scan | hunt | throw | shake | attack | caught | dead
+  const [phase, setPhaseState] = useState('scan'); // scan | hunt | throw | shake | seal | attack | caught | dead
   const [ghost, setGhost] = useState(null);
   const [sucked, setSucked] = useState(false);
+  const [frenzy, setFrenzy] = useState(false);
   const [talisman, setTalisman] = useState('paper');
   const [toast, setToast] = useState(null);
-  const [panel, setPanel] = useState(null); // 'dex' | 'board'
+  const [panel, setPanel] = useState(null);
   const [caught, setCaught] = useState(null);
   const [dead, setDead] = useState(null);
   const [scare, setScare] = useState(null);
+  const [sealFx, setSealFx] = useState(null);
+  const [flash, setFlash] = useState(null);
   const [hurt, setHurt] = useState(0);
+  const [muted, setMutedState] = useState(isMuted);
 
+  const appRef = useRef(null);
   const phaseRef = useRef('scan');
   const saveRef = useRef(save);
-  const playerRef = useRef(player);
   const ghostRef = useRef(null);
   const view = useRef({ sensorH: 0, sensorP: 0, dragH: 0, dragP: 0, h: 0, p: 0 });
   const videoRef = useRef(null);
@@ -67,11 +74,13 @@ export default function App() {
   const emfRef = useRef(null);
   const timerRef = useRef(null);
   const timerTextRef = useRef(null);
+  const countRef = useRef(null);
   const talRef = useRef(null);
   const talInnerRef = useRef(null);
   const throwRef = useRef(null);
   const stageDrag = useRef(null);
   const attackRef = useRef(null);
+  const frenzyRef = useRef(null);
   const timers = useRef([]);
   const toastTimer = useRef(null);
 
@@ -82,17 +91,24 @@ export default function App() {
     setToast({ text, id: Date.now() });
     toastTimer.current = setTimeout(() => setToast(null), ms);
   };
+  const speciesCount = (s) => GHOSTS.filter((g) => s.caught[g.id]).length;
 
-  // Lưu tiến độ theo tên
   useEffect(() => {
     saveRef.current = save;
     writeSave(player?.name || '_guest', save);
   }, [save, player]);
-  useEffect(() => { playerRef.current = player; }, [player]);
 
   useEffect(() => () => {
     timers.current.forEach(clearTimeout);
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    music.stop();
+  }, []);
+
+  // Tạm dừng âm thanh khi chuyển tab
+  useEffect(() => {
+    const onVis = () => pauseAudio(document.hidden);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
   // ====== GHI DANH ======
@@ -110,29 +126,29 @@ export default function App() {
       applyPlayer({ name: r.name, token: r.token });
     } catch (e) {
       if (e.status === 400 || e.status === 409) throw e;
-      applyPlayer({ name, token: null, offline: true }); // chưa có máy chủ → chơi ngoại tuyến
+      applyPlayer({ name, token: null, offline: true });
     }
   };
 
   const logout = () => { savePlayer(null); setPlayer(null); };
 
-  // Đồng bộ điểm lên bảng xếp hạng (gom lại sau 1.2s)
   useEffect(() => {
     if (!player?.token) return undefined;
     const t = setTimeout(async () => {
       try {
         const r = await api.score({
           name: player.name, token: player.token,
-          xp: save.xp, total: save.total, species: Object.keys(save.caught).length,
+          xp: save.xp, total: save.total, species: speciesCount(save),
         });
         setRank(r.rank);
         if (r.clamped) setSave((s) => ({ ...s, xp: r.xp }));
-      } catch { /* mất mạng: bỏ qua, lần sau gửi lại */ }
+      } catch { /* mất mạng: lần sau gửi lại */ }
     }, 1200);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save.xp, save.total, player]);
 
-  // ====== BẮT ĐẦU: xin quyền cảm biến + camera (phải trong cú bấm) ======
+  // ====== BẮT ĐẦU ======
   const start = async () => {
     setStarting(true);
     unlockAudio();
@@ -151,10 +167,23 @@ export default function App() {
       setCamOk(false);
       showToast('Không mở được camera, chuyển sang chế độ đêm', 2600);
     }
+    music.start();
     setStarting(false);
     setStarted(true);
     if (saveRef.current.hp <= 0) setSave((s) => ({ ...s, hp: MAX_HP }));
   };
+
+  const toggleMute = () => { const m = !muted; setMuted(m); setMutedState(m); };
+
+  // Nhạc nền theo tình huống
+  useEffect(() => {
+    if (!started) return;
+    let m = 'calm';
+    if (phase === 'hunt' || phase === 'throw' || phase === 'shake') m = frenzy ? 'frenzy' : 'tense';
+    if (phase === 'attack' || phase === 'seal') m = 'silent';
+    const riserSec = Math.max(1, ghostRef.current?.timeLeft || FRENZY_SEC);
+    music.setMode(m, { riserSec });
+  }, [started, phase, frenzy]);
 
   // ====== CẢM BIẾN XOAY ======
   useEffect(() => {
@@ -185,6 +214,32 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [started]);
 
+  // ====== ÁM ẢNH NGẪU NHIÊN: bóng ma loé lên, tiếng thở sau lưng ======
+  useEffect(() => {
+    if (!started) return undefined;
+    let t;
+    const tick = () => {
+      t = setTimeout(() => {
+        const ph = phaseRef.current;
+        if ((ph === 'scan' || (ph === 'hunt' && !ghostRef.current?.frenzy)) && !document.hidden) {
+          if (Math.random() < 0.6) {
+            const g = GHOSTS[Math.floor(Math.random() * GHOSTS.length)];
+            setFlash({ img: g.img, side: Math.random() < 0.5 ? 'left' : 'right', id: Date.now() });
+            sfx.whisper();
+            vibrate(25);
+            setTimeout(() => setFlash(null), 160);
+          } else {
+            sfx.breath();
+            if (ph === 'scan') setTimeout(() => showToast('…có tiếng thở ngay sau lưng bạn', 2200), 900);
+          }
+        }
+        tick();
+      }, rand(16000, 38000));
+    };
+    tick();
+    return () => clearTimeout(t);
+  }, [started]);
+
   // ====== VÒNG LẶP 60fps ======
   useEffect(() => {
     if (!started) return undefined;
@@ -208,33 +263,33 @@ export default function App() {
       if (g) {
         const dt = g.lastT ? Math.min(0.1, (now - g.lastT) / 1000) : 0;
         g.lastT = now;
-        const m = g.def.move;
+        const m = g.def.move * (g.frenzy ? 1.9 : 1);
 
         if (ph === 'hunt' || ph === 'throw') {
           const t = (now - g.born) / 1000;
-          // thỉnh thoảng ma "chớp" sang chỗ khác
-          if (ph === 'hunt' && Math.random() < 0.004 * m) g.baseYaw += rand(-7, 7);
+          if (ph === 'hunt' && Math.random() < (g.frenzy ? 0.01 : 0.004) * m) g.baseYaw += rand(-7, 7);
           g.yaw = g.baseYaw + Math.sin(t * 0.7) * m * 8 + Math.sin(t * 1.9) * m * 3;
           g.pitch = g.basePitch + Math.sin(t * 1.3) * m * 4;
         }
 
-        // Đồng hồ: chỉ chạy khi đang săn, dừng khi bùa đang bay / đang phong ấn
         if (ph === 'hunt') {
           g.timeLeft -= dt;
           const sec = Math.ceil(g.timeLeft);
+          if (!g.frenzy && g.timeLeft <= FRENZY_SEC) frenzyRef.current?.('time');
           if (timerRef.current) timerRef.current.style.setProperty('--t', clamp(g.timeLeft / g.def.patience, 0, 1));
           if (timerTextRef.current) timerTextRef.current.textContent = `${Math.max(0, sec)}s`;
-          if (sec <= 5 && sec > 0 && sec !== g.beat) { g.beat = sec; sfx.heartbeat(); vibrate(40); }
+          if (countRef.current) countRef.current.textContent = Math.max(0, sec);
+          if (g.frenzy && sec > 0 && sec !== g.beat) { g.beat = sec; sfx.heartbeat(0.45); vibrate(60); }
           if (g.timeLeft <= 0 && !g.attacking) { g.attacking = true; attackRef.current?.(); }
         }
 
-        // Ma lao thẳng vào mặt người chơi
-        g.scale = 1;
+        // Nổi điên: ma tiến dần lại gần
+        g.scale = g.frenzy ? 1 + (1 - clamp(g.timeLeft / FRENZY_SEC, 0, 1)) * 0.6 : 1;
         if (ph === 'attack') {
           const p = clamp((now - g.attackStart) / RUSH_MS, 0, 1);
           g.yaw += wrap180(v.h - g.yaw) * 0.15;
           g.pitch += (v.p - g.pitch) * 0.15;
-          g.scale = 1 + p * p * 7;
+          g.scale = 1.4 + p * p * 7;
         }
 
         const dx = wrap180(g.yaw - v.h) * ppd;
@@ -263,6 +318,8 @@ export default function App() {
         }
       }
 
+      // Camera nhiễu sóng khi ma ở rất gần
+      appRef.current?.classList.toggle('near', emf > 0.82 && (ph === 'hunt' || ph === 'attack'));
       if (arrowRef.current) arrowRef.current.style.opacity = arrowOn ? '1' : '0';
       if (emfRef.current) {
         const lit = Math.ceil(clamp(emf, 0, 1) * 5);
@@ -280,29 +337,48 @@ export default function App() {
     const side = Math.random() < 0.5 ? -1 : 1;
     const baseYaw = (view.current.h + side * rand(35, 140) + 360) % 360;
     ghostRef.current = {
-      def, baseYaw, basePitch: rand(-4, 12), yaw: baseYaw, pitch: 0,
+      def, baseYaw, basePitch: rand(-4, 10), yaw: baseYaw, pitch: 0,
       born: performance.now(), sx: -999, sy: -999, ring: 1, scale: 1,
-      timeLeft: def.patience, beat: null, attacking: false, lastT: 0,
+      timeLeft: def.patience, beat: null, attacking: false, frenzy: false, lastT: 0,
     };
     setSucked(false);
+    setFrenzy(false);
     setGhost(def);
     setPhase('hunt');
     sfx.spawn();
     vibrate(80);
     const msg = {
       common: 'Có thứ gì đó đang nhìn bạn…',
-      rare: 'Lạnh sống lưng. Một lệ quỷ đang ở gần',
-      legendary: 'Hàng trăm tiếng gào thét vang lên…',
+      rare: 'Lạnh sống lưng. Nó đang ở rất gần',
+      legendary: 'Đừng quay lại. Nó đã thấy bạn rồi',
     };
     showToast(msg[def.rarity], 2200);
   };
 
   useEffect(() => {
     if (!started || phase !== 'scan') return undefined;
-    const t = setTimeout(spawn, rand(2000, 4500));
+    const t = setTimeout(spawn, rand(2500, 5000));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, phase]);
+
+  // ====== NỔI ĐIÊN: chỉ còn 5 giây ======
+  const enterFrenzy = (reason) => {
+    const g = ghostRef.current;
+    if (!g) return;
+    if (g.frenzy) {
+      g.timeLeft = Math.max(1, g.timeLeft - 1); // đã điên rồi, hụt tiếp → bớt 1 giây
+      return;
+    }
+    g.frenzy = true;
+    g.timeLeft = reason === 'fail' ? FRENZY_SEC : Math.min(g.timeLeft, FRENZY_SEC);
+    g.beat = null;
+    setFrenzy(true);
+    sfx.angry();
+    vibrate([120, 60, 120]);
+    showToast(reason === 'fail' ? 'Nó nổi điên rồi! Phong ấn ngay!' : 'Hết kiên nhẫn. Nó sắp lao tới!', 1600);
+  };
+  frenzyRef.current = enterFrenzy;
 
   // ====== MA TẤN CÔNG ======
   const startAttack = () => {
@@ -322,6 +398,7 @@ export default function App() {
         setScare(null);
         ghostRef.current = null;
         setGhost(null);
+        setFrenzy(false);
         const hp = saveRef.current.hp - 1;
         setHurt((n) => n + 1);
         if (hp <= 0) {
@@ -360,7 +437,7 @@ export default function App() {
     if (!el || !inner) return;
     el.style.transition = 'none';
     el.style.transform = '';
-    inner.classList.remove('wobble', 'pop');
+    inner.classList.remove('wobble', 'pop', 'burn', 'glow');
     void inner.offsetWidth;
     inner.classList.add('pop');
   };
@@ -432,15 +509,13 @@ export default function App() {
     later(() => {
       const gg = ghostRef.current;
       if (!gg) return;
-      // vùng trúng hình elip theo dáng ma
-      const w = GHOST_PX * gg.def.size;
+      const w = GHOST_PX * gg.def.size * gg.scale;
       const h = w * gg.def.ratio;
       const nx = (landX - gg.sx) / (w * 0.55);
       const ny = (landY - gg.sy) / (h * 0.5);
-      const hit = nx * nx + ny * ny < 1;
-      if (!hit) {
+      if (nx * nx + ny * ny >= 1) {
         sfx.miss();
-        showToast('Trượt rồi, thử lại!', 1200);
+        showToast('Trượt rồi!', 1000);
         popTalisman();
         setPhase('hunt');
         return;
@@ -448,12 +523,15 @@ export default function App() {
       const zone = ZONE[ringZone(ringAt)];
       const p = clamp(gg.def.catch * TALISMANS[kind].mult * zone.mult, 0.02, 0.97);
       const success = Math.random() < p;
+      gg.landX = landX;
+      gg.landY = landY;
       sfx.hit();
       vibrate(50);
-      showToast(zone.label, 1100);
+      showToast(zone.label, 1000);
       setSucked(true);
       setPhase('shake');
-      runShakes(success, success ? 3 : Math.floor(Math.random() * 3), gg.def);
+      talInnerRef.current?.classList.add('glow');
+      runShakes(success, success ? 3 : 1 + Math.floor(Math.random() * 2), gg.def);
     }, 440);
   };
 
@@ -469,15 +547,28 @@ export default function App() {
         later(step, 750);
       } else {
         inner?.classList.remove('wobble');
-        if (success) onCaught(def); else onBreakFree(def);
+        if (success) onSealed(def); else onBreakFree();
       }
     };
     later(step, 450);
   };
 
+  // Phong ấn thành công → hiệu ứng → thẻ phần thưởng
+  const onSealed = (def) => {
+    const g = ghostRef.current;
+    const x = g?.landX ?? window.innerWidth / 2;
+    const y = g?.landY ?? window.innerHeight * HORIZON;
+    setPhase('seal');
+    setFrenzy(false);
+    setSealFx({ x, y, id: Date.now() });
+    sfx.gong();
+    vibrate([60, 40, 60, 40, 200]);
+    ghostRef.current = null;
+    setGhost(null);
+    later(() => { setSealFx(null); onCaught(def); }, SEAL_MS);
+  };
+
   const onCaught = (def) => {
-    sfx.caught();
-    vibrate([40, 40, 120]);
     const prev = saveRef.current;
     const before = levelFromXp(prev.xp).level;
     const after = levelFromXp(prev.xp + def.xp).level;
@@ -493,34 +584,22 @@ export default function App() {
       talismans: { paper: s.talismans.paper + bonusPaper, gold: s.talismans.gold + (levelUp ? 3 : 0) },
     }));
     setCaught({ def, xp: def.xp, levelUp, level: after, isNew: !prev.caught[def.id], bonusPaper, hpGain });
-    ghostRef.current = null;
-    setGhost(null);
     setSucked(false);
     popTalisman();
     setPhase('caught');
   };
 
-  const onBreakFree = (def) => {
-    popTalisman();
+  // Bắt hụt → bùa cháy rụi, ma thoát ra và nổi điên
+  const onBreakFree = () => {
+    const inner = talInnerRef.current;
+    if (inner) { inner.classList.remove('glow', 'wobble'); void inner.offsetWidth; inner.classList.add('burn'); }
+    sfx.burn();
     const g = ghostRef.current;
-    if (Math.random() < def.flee) {
-      sfx.escape();
-      showToast(`${def.name} đã biến mất vào bóng tối`, 1800);
-      ghostRef.current = null;
-      setGhost(null);
-      setSucked(false);
-      setPhase('scan');
-    } else {
-      sfx.angry();
-      vibrate(120);
-      showToast('Ma phá bùa và nổi giận!', 1500);
-      if (g) {
-        g.born = performance.now();
-        g.timeLeft = Math.max(2.5, g.timeLeft - ANGER_SEC);
-      }
-      setSucked(false);
-      setPhase('hunt');
-    }
+    if (g) g.born = performance.now();
+    setSucked(false);
+    setPhase('hunt');
+    enterFrenzy('fail');
+    later(popTalisman, 750);
   };
 
   const closeCaught = () => { setCaught(null); setPhase('scan'); };
@@ -552,15 +631,18 @@ export default function App() {
   const canThrow = phase === 'hunt' && !empty;
   const ghostW = ghost ? GHOST_PX * ghost.size : 0;
   const ghostH = ghost ? ghostW * ghost.ratio : 0;
+  const huntLike = phase === 'hunt' || phase === 'throw' || phase === 'shake';
 
   let status = 'Đang dò âm khí…';
   if (phase === 'throw') status = 'Bùa đang bay…';
   if (phase === 'shake') status = 'Đang phong ấn…';
+  if (phase === 'seal') status = 'Phong ấn thành công';
   if (phase === 'attack') status = 'Nó đang lao tới!';
-  if (phase === 'caught') status = 'Phong ấn thành công';
+
+  const appClass = ['app', scare && 'shaking', frenzy && huntLike && 'frenzy'].filter(Boolean).join(' ');
 
   return (
-    <div className={`app ${scare ? 'shaking' : ''}`}>
+    <div ref={appRef} className={appClass}>
       <video ref={videoRef} className={`cam ${camOk ? 'on' : ''}`} playsInline muted autoPlay />
       {(!started || !camOk) && (
         <div className="night">
@@ -588,10 +670,10 @@ export default function App() {
             {ghost && (
               <div
                 ref={ghostElRef}
-                className={`ghost-wrap ${phase === 'attack' ? 'rushing' : ''}`}
+                className={`ghost-wrap ${phase === 'attack' ? 'rushing' : ''} ${frenzy ? 'mad' : ''}`}
                 style={{ width: ghostW, height: ghostH }}
               >
-                {phase === 'hunt' && (
+                {phase === 'hunt' && !frenzy && (
                   <div className="ghost-tag" style={{ '--rc': RARITY[ghost.rarity].color }}>
                     {ghost.name}<em>{RARITY[ghost.rarity].label}</em>
                   </div>
@@ -610,6 +692,19 @@ export default function App() {
             <div className="reticle" />
           </div>
 
+          {frenzy && huntLike && (
+            <div className="frenzy-count" aria-live="assertive">
+              <b ref={countRef}>{FRENZY_SEC}</b>
+              <span>Phong ấn ngay!</span>
+            </div>
+          )}
+
+          {flash && (
+            <div key={flash.id} className={`subliminal ${flash.side}`} aria-hidden="true">
+              <img src={flash.img} alt="" />
+            </div>
+          )}
+
           <header className="hud-top">
             <div className="hud-left">
               <div className="lv">
@@ -624,11 +719,16 @@ export default function App() {
               </div>
             </div>
             <div className="hud-right">
-              <button className="hud-btn" onClick={() => setPanel('board')}>
-                {rank ? `Hạng ${rank}` : 'Xếp hạng'}
-              </button>
+              <div className="hud-row">
+                <button className="hud-btn icon" onClick={toggleMute} aria-label={muted ? 'Bật âm thanh' : 'Tắt âm thanh'}>
+                  {muted ? '🔇' : '🔊'}
+                </button>
+                <button className="hud-btn" onClick={() => setPanel('board')}>
+                  {rank ? `Hạng ${rank}` : 'Xếp hạng'}
+                </button>
+              </div>
               <button className="hud-btn" onClick={() => setPanel('dex')}>
-                Sổ Ma <b>{Object.keys(save.caught).length}/{GHOSTS.length}</b>
+                Sổ Ma <b>{speciesCount(save)}/{GHOSTS.length}</b>
               </button>
             </div>
           </header>
@@ -639,14 +739,14 @@ export default function App() {
           </div>
 
           <footer className="hud-bottom">
-            {phase === 'hunt' && ghost ? (
+            {phase === 'hunt' && ghost && !frenzy ? (
               <div className="timer" ref={timerRef}>
                 <span className="timer-label">Tấn công sau</span>
                 <span className="timer-bar"><i /></span>
                 <b ref={timerTextRef}>{ghost.patience}s</b>
               </div>
             ) : (
-              <div className={`status ${phase}`}>{status}</div>
+              <div className={`status ${phase}`}>{frenzy && huntLike ? 'Nó đang tiến lại gần…' : status}</div>
             )}
 
             <div className={`tal-slot ${canThrow ? '' : 'disabled'}`}>
@@ -657,7 +757,7 @@ export default function App() {
                 onPointerMove={onTalMove}
                 onPointerUp={onTalUp}
                 onPointerCancel={onTalUp}
-                style={{ visibility: phase === 'caught' || phase === 'dead' ? 'hidden' : 'visible' }}
+                style={{ visibility: ['caught', 'dead', 'seal'].includes(phase) ? 'hidden' : 'visible' }}
               >
                 <div ref={talInnerRef} className={`tal-inner ${talisman}`}>
                   <Talisman kind={talisman} />
@@ -691,10 +791,12 @@ export default function App() {
           </footer>
 
           {toast && <div key={toast.id} className="toast">{toast.text}</div>}
+          {sealFx && <SealFX key={sealFx.id} x={sealFx.x} y={sealFx.y} />}
 
           {scare && (
             <div className="jumpscare" aria-hidden="true">
               <img src={scare.img} alt="" />
+              <div className="scare-glitch" style={{ backgroundImage: `url(${scare.img})` }} />
             </div>
           )}
 

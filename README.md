@@ -34,20 +34,22 @@ Chưa bật bước này game vẫn chơi được, người chơi ở chế đ�
 | Ghi danh bằng tên | Tên là duy nhất, hiện trên bảng xếp hạng |
 | Xoay điện thoại / kéo chuột | Nhìn quanh, theo mũi tên đỏ và máy đo EMF |
 | Vuốt bùa lên phía ma | Ném bùa, ném lúc vòng tròn **xanh lá** để tỷ lệ ×1.8 |
-| Hết thời gian **Tấn công sau** | Ma lao tới hù, mất 1 Dương khí |
-| Bắt hụt, ma phá bùa | Ma nổi giận, thời gian bị rút 4 giây |
-| Phong ấn thành công | +XP, +bùa, hồi 1 Dương khí |
+| Phong ấn thành công | Tiếng chiêng, vòng ấn chú, dấu triện 封印, +XP, hồi 1 Dương khí |
+| **Bắt hụt** | Bùa cháy rụi, ma **nổi điên**: nhạc dồn dập, chỉ còn **5 giây** |
+| Hết giờ | Ma lao tới hù, mất 1 Dương khí |
 | Cạn 3 Dương khí | Bị trừ 100 XP, thắp nhang để hồi dương |
+
+Nhạc nền tự đổi theo tình huống: **yên ắng** (dò ma) → **tim đập** (gặp ma) → **trống dồn dập + tiếng rít tăng dần** (5 giây cuối).
+Thỉnh thoảng có tiếng thì thầm, tiếng gõ cửa, hộp nhạc lạc tông, bóng ma loé lên ở mép màn hình. Nút 🔊 để tắt tiếng.
 
 ## 4. Danh sách ma
 
 | Ma | Độ hiếm | Thời gian trước khi tấn công |
 |---|---|---|
-| Quỷ Khâu Mắt | Oán linh | 20s |
-| Oán Nhi Tầm Mẫu | Oán linh | 18s |
-| Xà Diện Huyết Nữ | Lệ quỷ | 15s |
-| Thi Cốt Mộc Nhân | Lệ quỷ | 16s |
-| Dạ Xoa Nghìn Mặt | Đại hung | 12s |
+| Bóng Trắng Cuối Hành Lang | Oán linh | 20s |
+| Oan Hồn Tóc Rũ | Oán linh | 18s |
+| Nữ Quỷ Gầm Tủ | Lệ quỷ | 15s |
+| Ma Nữ Cầu Thang | Đại hung | 12s |
 
 ## 5. Tuỳ chỉnh nhanh
 
@@ -55,7 +57,8 @@ Chưa bật bước này game vẫn chơi được, người chơi ở chế đ�
 |---|---|
 | Tên, mô tả, tỷ lệ bắt, thời gian tấn công của ma | `src/ghosts.js` |
 | Thêm ma mới | Ảnh PNG/WebP nền trong suốt vào `public/ghosts/`, khai báo trong `src/ghosts.js` |
-| XP bị trừ khi chết, thời gian lao tới, độ nổi giận | Đầu file `src/App.jsx` |
+| Số giây khi nổi điên, XP bị trừ, thời gian lao tới | Đầu file `src/App.jsx` |
+| Nhạc nền, âm thanh | `src/lib/music.js`, `src/lib/sound.js` |
 | Số bùa, số Dương khí | `src/lib/storage.js` |
 | Luật chống hack điểm | `api/score.js` |
 
@@ -70,7 +73,7 @@ Chưa bật bước này game vẫn chơi được, người chơi ở chế đ�
 ```
 san-ma/
 ├── api/                   # Vercel Functions: ghi danh, gửi điểm, bảng xếp hạng
-├── public/ghosts/         # Ảnh 5 con ma (nền trong suốt)
+├── public/ghosts/         # Ảnh ma (nền trong suốt)
 └── src/
     ├── App.jsx            # Lõi game: camera, cảm biến, ném bùa, ma tấn công
     ├── ghosts.js          # Danh sách ma

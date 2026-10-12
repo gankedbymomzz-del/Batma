@@ -136,7 +136,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
   position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform;
   animation: appear 1.2s ease-out;
 }
-@keyframes appear { 0% { opacity: 0; } 30% { opacity: .5; } 40% { opacity: .1; } 100% { opacity: 1; } }
+@keyframes appear {
+  0% { opacity: 0; filter: blur(12px); } 30% { opacity: .5; filter: blur(6px); }
+  40% { opacity: .05; } 55% { opacity: .7; } 62% { opacity: .15; } 100% { opacity: 1; filter: blur(0); }
+}
 .ghost-wrap.rushing { z-index: 8; }
 .ghost-wrap.rushing .ghost-img { filter: drop-shadow(0 0 30px var(--blood)) contrast(1.3) saturate(1.4); }
 
@@ -151,9 +154,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
 
 .ghost-img {
   display: block; height: auto; max-width: none;
-  filter: drop-shadow(0 0 16px var(--glow)) drop-shadow(0 10px 20px rgba(0, 0, 0, .7));
+  filter: saturate(.55) contrast(1.12) drop-shadow(0 0 10px var(--glow)) drop-shadow(0 12px 24px rgba(0, 0, 0, .8));
   -webkit-user-drag: none;
 }
+.ghost-wrap .ghost-img { opacity: .93; }
 .ghost-img.sil { filter: brightness(0) drop-shadow(0 0 6px rgba(179, 18, 27, .6)); opacity: .75; }
 
 .ghost-tag {
@@ -416,4 +420,139 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
 
 @media (prefers-reduced-motion: reduce) {
   .fog, .grain, .ghost-haunt, .tal-inner, .start-art .ghost-img, .app.shaking, .vignette.danger { animation: none !important; }
+}
+
+/* ================== BẢN ÁM ẢNH ================== */
+.warn {
+  margin: 18px 0 0; max-width: 36ch; font-size: 13px; line-height: 1.45;
+  color: #ff8a80; border: 1px solid rgba(255, 59, 59, .35); border-radius: 12px; padding: 8px 12px;
+  background: rgba(60, 0, 6, .35);
+}
+.hud-row { display: flex; gap: 6px; }
+.hud-btn.icon { padding: 4px 10px; font-size: 15px; }
+
+/* Camera nhiễu khi ma ở rất gần */
+.app.near .cam { animation: camGlitch .4s steps(3) infinite; }
+.app.near .grain { opacity: .2; }
+@keyframes camGlitch {
+  0% { transform: translate(0, 0); filter: saturate(.3) contrast(1.2) brightness(.6) hue-rotate(-20deg); }
+  33% { transform: translate(-4px, 1px) skewX(2deg); filter: saturate(.1) contrast(1.6) brightness(.45) hue-rotate(160deg); }
+  66% { transform: translate(3px, -2px); filter: saturate(.4) contrast(1.3) brightness(.7) invert(.08); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Nổi điên: 5 giây cuối */
+.app.frenzy .vignette { animation: frenzyPulse .45s ease-in-out infinite; }
+@keyframes frenzyPulse {
+  0%, 100% { box-shadow: inset 0 0 80px rgba(179, 18, 27, .5); }
+  50% { box-shadow: inset 0 0 200px rgba(200, 0, 10, .95); }
+}
+.app.frenzy .stage { animation: jitter .14s steps(2) infinite; }
+@keyframes jitter { 0% { transform: translate(0, 0); } 50% { transform: translate(2px, -1px); } 100% { transform: translate(-1px, 2px); } }
+.ghost-wrap.mad .ghost-img {
+  filter: saturate(.4) contrast(1.4) brightness(1.05) drop-shadow(0 0 22px rgba(255, 30, 30, .8));
+}
+.ghost-wrap.mad .ghost-haunt { animation: madShake .11s steps(2) infinite, flicker 1.6s infinite; }
+@keyframes madShake {
+  0% { transform: translate(0, 0) skewX(0); } 50% { transform: translate(-3px, 2px) skewX(-3deg); } 100% { transform: translate(3px, -1px) skewX(2deg); }
+}
+.frenzy-count {
+  position: absolute; left: 50%; top: calc(11% + var(--safe-top)); z-index: 9; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; pointer-events: none;
+}
+.frenzy-count b {
+  font-size: 88px; line-height: 1; font-weight: 800; color: var(--blood-hi);
+  text-shadow: 0 0 30px var(--blood), 3px 3px 0 #000;
+  animation: countPulse 1s ease-in-out infinite;
+}
+.frenzy-count span { font-size: 16px; font-weight: 800; color: var(--text); text-shadow: 0 2px 6px #000; }
+@keyframes countPulse { 0% { transform: scale(1.35); } 30% { transform: scale(1); } 100% { transform: scale(.95); } }
+
+/* Bùa: phát sáng khi giữ ma, cháy rụi khi ma thoát */
+.tal-inner.glow { filter: drop-shadow(0 0 18px #ffd166) drop-shadow(0 0 6px #fff); }
+.tal-inner.burn { animation: burn .75s ease-in forwards; }
+@keyframes burn {
+  0% { filter: brightness(1.6) drop-shadow(0 0 20px #ff6b1a); transform: scale(1); }
+  40% { filter: sepia(1) saturate(4) hue-rotate(-30deg) brightness(.8) drop-shadow(0 0 16px #ff3b00); transform: scale(1.05) rotate(-6deg); }
+  100% { filter: brightness(0) blur(3px); transform: translateY(40px) scale(.6) rotate(18deg); opacity: 0; }
+}
+
+/* Hiệu ứng phong ấn */
+.seal-fx { position: absolute; inset: 0; z-index: 25; pointer-events: none; overflow: hidden; }
+.seal-flash {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at var(--x) var(--y), rgba(255, 240, 200, .95), rgba(255, 190, 80, .5) 18%, transparent 55%);
+  animation: sealFlash .9s ease-out forwards;
+}
+@keyframes sealFlash { from { opacity: 1; } to { opacity: 0; } }
+.seal-origin { position: absolute; width: 0; height: 0; }
+.seal-ring {
+  position: absolute; left: 0; top: 0; width: 80px; height: 80px; margin: -40px 0 0 -40px;
+  border-radius: 50%; border: 3px solid #ffd166; box-shadow: 0 0 20px #ffb547;
+  animation: sealRing 1.1s ease-out forwards;
+}
+.seal-ring.r2 { border-color: #ff6b4a; animation-delay: .12s; }
+.seal-ring.r3 { border-width: 2px; animation-delay: .25s; }
+@keyframes sealRing { from { transform: scale(.2); opacity: 1; } to { transform: scale(5); opacity: 0; } }
+.seal-circle {
+  position: absolute; left: 0; top: 0; width: 230px; height: 230px; margin: -115px 0 0 -115px;
+  filter: drop-shadow(0 0 10px #ffb547);
+  animation: sealCircle 1.6s ease-out forwards;
+}
+@keyframes sealCircle {
+  0% { transform: scale(.3) rotate(-90deg); opacity: 0; }
+  25% { transform: scale(1) rotate(0); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: scale(1.15) rotate(60deg); opacity: 0; }
+}
+.spark {
+  position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); border-radius: 50%;
+  background: #fff3c4; box-shadow: 0 0 10px #ffb547, 0 0 4px #fff;
+  animation: spark 1s ease-out forwards; opacity: 0;
+}
+@keyframes spark {
+  0% { transform: rotate(var(--a)) translateX(0) scale(1); opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(var(--d)) scale(.2); opacity: 0; }
+}
+.seal-stamp {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  animation: stampIn 1.7s cubic-bezier(.2, 1.6, .4, 1) forwards; opacity: 0;
+}
+.seal-stamp span {
+  display: block; padding: 10px 18px; font-family: serif; font-size: 64px; font-weight: 700; line-height: 1;
+  color: #e3262f; border: 6px double #e3262f; border-radius: 10px; letter-spacing: 6px;
+  background: rgba(242, 210, 122, .14);
+  text-shadow: 0 0 2px #e3262f; box-shadow: 0 0 40px rgba(227, 38, 47, .45);
+}
+@keyframes stampIn {
+  0% { transform: translate(-50%, -50%) scale(3) rotate(-25deg); opacity: 0; }
+  28% { opacity: 0; }
+  40% { transform: translate(-50%, -50%) scale(.92) rotate(-10deg); opacity: 1; }
+  48% { transform: translate(-50%, -50%) scale(1) rotate(-10deg); }
+  85% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(-10deg); opacity: 0; }
+}
+
+/* Bóng ma loé lên rất nhanh ở mép màn hình */
+.subliminal { position: absolute; top: 18%; z-index: 7; pointer-events: none; }
+.subliminal.left { left: -30px; }
+.subliminal.right { right: -30px; }
+.subliminal img { height: 46vh; width: auto; opacity: .5; filter: grayscale(1) contrast(1.6) brightness(.8); }
+
+/* Hù doạ: lớp nhiễu tách màu */
+.scare-glitch {
+  position: absolute; inset: 0; background-size: 150vw auto; background-position: 50% -3%;
+  background-repeat: no-repeat; mix-blend-mode: screen; opacity: .5;
+  filter: hue-rotate(-60deg) saturate(4);
+  animation: scareGlitch .12s steps(2) infinite;
+}
+@keyframes scareGlitch {
+  0% { transform: translate(-10px, 0); clip-path: inset(10% 0 55% 0); }
+  50% { transform: translate(12px, 4px); clip-path: inset(45% 0 20% 0); }
+  100% { transform: translate(-6px, -3px); clip-path: inset(70% 0 5% 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app.near .cam, .app.frenzy .stage, .ghost-wrap.mad .ghost-haunt, .scare-glitch, .subliminal { animation: none !important; }
+  .subliminal { display: none; }
 }

@@ -1,6 +1,6 @@
 // ====== DANH SÁCH MA — sửa/thêm ma tại đây ======
 // img: ảnh nền trong suốt trong public/ghosts | ratio: cao/rộng của ảnh
-// catch: tỷ lệ bắt gốc | flee: tỷ lệ bỏ chạy khi bắt hụt | move: độ di chuyển
+// catch: tỷ lệ bắt gốc | move: độ di chuyển (bắt hụt → ma nổi điên, chỉ còn 5 giây)
 // size: kích thước | xp: điểm | patience: số giây trước khi ma lao tới tấn công
 
 export const RARITY = {
@@ -16,34 +16,28 @@ export const TALISMANS = {
 
 export const GHOSTS = [
   {
-    id: 'quy-khau-mat', name: 'Quỷ Khâu Mắt', rarity: 'common',
-    img: '/ghosts/quy-khau-mat.webp', ratio: 2.05, glow: '#3d4b5c',
-    catch: 0.55, flee: 0.12, move: 1.1, size: 1, xp: 30, patience: 20,
-    desc: 'Kẻ mù quáng bị khâu chằng chịt mắt và miệng. Bò trườn trong hẻm tối, lần theo tiếng thở của bạn.',
+    id: 'bong-trang-hanh-lang', name: 'Bóng Trắng Cuối Hành Lang', rarity: 'common',
+    img: '/ghosts/bong-trang-hanh-lang.webp', ratio: 2.31, glow: '#dfe8ff',
+    catch: 0.55, move: 1.0, size: 0.85, xp: 30, patience: 20,
+    desc: 'Chỉ là một vệt trắng cuối hành lang. Bạn chớp mắt, nó đã gần hơn một bước.',
   },
   {
-    id: 'oan-nhi-tam-mau', name: 'Oán Nhi Tầm Mẫu', rarity: 'common',
-    img: '/ghosts/oan-nhi-tam-mau.webp', ratio: 1.81, glow: '#8a5cc7',
-    catch: 0.5, flee: 0.15, move: 0.9, size: 0.95, xp: 35, patience: 18,
-    desc: 'Quái thai bò bằng bốn chi, từ bụng thò ra vô số cánh tay nhỏ. Đêm đêm khóc ré đi tìm mẹ.',
+    id: 'oan-hon-toc-ru', name: 'Oan Hồn Tóc Rũ', rarity: 'common',
+    img: '/ghosts/oan-hon-toc-ru.webp', ratio: 1.48, glow: '#2a2a33',
+    catch: 0.5, move: 0.7, size: 1.25, xp: 35, patience: 18,
+    desc: 'Mái tóc ướt sũng che kín mặt. Nếu nó vén tóc lên, đừng nhìn vào mắt nó.',
   },
   {
-    id: 'xa-dien-huyet-nu', name: 'Xà Diện Huyết Nữ', rarity: 'rare',
-    img: '/ghosts/xa-dien-huyet-nu.webp', ratio: 2.29, glow: '#d42a2a',
-    catch: 0.34, flee: 0.22, move: 1.2, size: 1.05, xp: 80, patience: 15,
-    desc: 'Cô dâu mặc hỷ phục đỏ, không còn da mặt. Vừa chải tóc vừa hỏi người qua đường: "Ta có đẹp không?"',
+    id: 'nu-quy-gam-tu', name: 'Nữ Quỷ Gầm Tủ', rarity: 'rare',
+    img: '/ghosts/nu-quy-gam-tu.webp', ratio: 1.73, glow: '#3a3f4a',
+    catch: 0.33, move: 1.3, size: 1.1, xp: 90, patience: 15,
+    desc: 'Sống trong gầm tủ quần áo. Đêm nào cũng bò ra, cười khúc khích bên giường người đang ngủ.',
   },
   {
-    id: 'thi-cot-moc-nhan', name: 'Thi Cốt Mộc Nhân', rarity: 'rare',
-    img: '/ghosts/thi-cot-moc-nhan.webp', ratio: 2.16, glow: '#5f7d4f',
-    catch: 0.32, flee: 0.24, move: 0.6, size: 1.15, xp: 90, patience: 16,
-    desc: 'Xác chết bị rễ cây đa cổ thụ đâm xuyên. Đứng im như gốc cây, chỉ cần bạn quay lưng là nó tiến lại gần.',
-  },
-  {
-    id: 'da-xoa-nghin-mat', name: 'Dạ Xoa Nghìn Mặt', rarity: 'legendary',
-    img: '/ghosts/da-xoa-nghin-mat.webp', ratio: 2.0, glow: '#e8dcc8',
-    catch: 0.16, flee: 0.3, move: 1.5, size: 1.2, xp: 250, patience: 12,
-    desc: 'Thực thể khoác áo liệm trắng, bên trong nhung nhúc hàng trăm gương mặt biến dạng đang gào thét.',
+    id: 'ma-nu-cau-thang', name: 'Ma Nữ Cầu Thang', rarity: 'legendary',
+    img: '/ghosts/ma-nu-cau-thang.webp', ratio: 1.87, glow: '#ff9a3c',
+    catch: 0.16, move: 1.5, size: 1.15, xp: 250, patience: 12,
+    desc: 'Đôi mắt rực lửa nhìn xuống từ chiếu nghỉ cầu thang. Không ai đếm được nó đã bước xuống bao nhiêu bậc.',
   },
 ];
 
