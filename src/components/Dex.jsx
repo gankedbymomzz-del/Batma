@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Ghost from './Ghost.jsx';
 import { GHOSTS, RARITY } from '../ghosts.js';
 
-export default function Dex({ save, onClose, onReset }) {
+export default function Dex({ save, onClose }) {
   const [sel, setSel] = useState(null);
   const caught = save.caught;
   const count = GHOSTS.filter((g) => caught[g.id]).length;
@@ -19,11 +19,11 @@ export default function Dex({ save, onClose, onReset }) {
 
         {sel ? (
           <div className="dex-detail" style={{ '--rc': RARITY[sel.rarity].color }}>
-            <Ghost def={sel} size={120} />
+            <Ghost def={sel} size={110} />
             <h3>{sel.name}</h3>
             <span className="rarity-chip">{RARITY[sel.rarity].label}</span>
             <p className="desc">{sel.desc}</p>
-            <p className="meta">Đã bắt: {caught[sel.id]} con</p>
+            <p className="meta">Đã phong ấn: {caught[sel.id]} lần</p>
             <button className="btn-ghost" onClick={() => setSel(null)}>Quay lại</button>
           </div>
         ) : (
@@ -39,24 +39,15 @@ export default function Dex({ save, onClose, onReset }) {
                   disabled={!n}
                 >
                   <span className="no">{i + 1}</span>
-                  <Ghost def={g} size={62} silhouette={!n} />
+                  <Ghost def={g} size={48} silhouette={!n} />
                   <b>{n ? g.name : '???'}</b>
-                  {n > 0 && <small>×{n}</small>}
+                  <small>{n ? `×${n}` : RARITY[g.rarity].label}</small>
                 </button>
               );
             })}
           </div>
         )}
-
-        <div className="sheet-foot">
-          <span>Tổng đã bắt: {save.total}</span>
-          <button
-            className="link-btn"
-            onClick={() => { if (window.confirm('Xoá toàn bộ tiến độ săn ma?')) onReset(); }}
-          >
-            Xoá tiến độ
-          </button>
-        </div>
+        <div className="sheet-foot"><span>Tổng đã phong ấn: {save.total}</span></div>
       </div>
     </div>
   );

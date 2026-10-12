@@ -1,83 +1,79 @@
 # 👻 Săn Ma AR
 
-Game săn ma thực tế ảo trên trình duyệt: mở camera, xoay điện thoại tìm ma, vuốt bùa để phong ấn vào **Sổ Ma**.
-React + Vite, không cần backend, tiến độ lưu trong trình duyệt.
+Game săn ma thực tế ảo trên trình duyệt: mở camera, xoay điện thoại tìm ma, vuốt bùa phong ấn.
+Ma đứng lâu không bị bắt sẽ **lao tới tấn công**. Ghi danh bằng tên để **thi đua trên bảng xếp hạng**.
+
+React + Vite + Vercel Functions + Upstash Redis (miễn phí).
 
 ---
 
-## 1. Đưa lên GitHub (Windows, không cần cài gì)
+## 1. Cập nhật lên GitHub (repo `san-ma` đã có)
 
-1. Giải nén file zip → được thư mục `san-ma`.
-2. Vào https://github.com/new → đặt tên repo `san-ma` → **Create repository**.
-3. Bấm link **uploading an existing file**.
-4. Mở thư mục `san-ma`, chọn **tất cả file và thư mục bên trong** (Ctrl + A), kéo thả vào trang GitHub.
-   - Kéo nội dung bên trong, **không** kéo cả thư mục `san-ma`.
-   - Không upload thư mục `node_modules` nếu bạn đã chạy thử trên máy.
-5. Bấm **Commit changes**.
+1. Giải nén zip → thư mục `san-ma`.
+2. Vào repo trên GitHub → **Add file → Upload files**.
+3. Mở thư mục `san-ma`, **Ctrl + A** chọn tất cả bên trong, kéo thả vào trang → **Commit changes**.
+   File trùng tên sẽ được ghi đè. Thư mục mới `api/` và `public/ghosts/` tự được thêm.
 
-> Kiểm tra: trang repo phải thấy ngay `package.json`, `index.html`, `src/` ở cấp ngoài cùng.
+> Kiểm tra: repo phải có thư mục `api/` ngang hàng với `src/`.
 
-## 2. Deploy lên Vercel
+## 2. Bật bảng xếp hạng (làm 1 lần, ~2 phút)
 
-1. Vào https://vercel.com → đăng nhập bằng GitHub.
-2. **Add New → Project** → chọn repo `san-ma` → **Import**.
-3. Vercel tự nhận **Vite**, giữ nguyên cài đặt → **Deploy**.
-4. Khoảng 1 phút sau có link dạng `https://san-ma-xxx.vercel.app`.
+1. Vào Vercel → mở project `san-ma` → tab **Storage**.
+2. **Create Database** → chọn **Upstash** → **Upstash for Redis** → gói **Free** → Create.
+3. Chọn **Connect** vào project `san-ma` (giữ tick Production + Preview).
+4. Tab **Deployments** → bấm `⋯` ở bản mới nhất → **Redeploy**.
 
-Từ đó, mỗi lần sửa file trên GitHub là Vercel tự deploy lại.
+Vercel tự gắn biến môi trường (`KV_REST_API_URL`, `KV_REST_API_TOKEN` hoặc `UPSTASH_REDIS_REST_*`), không cần chép tay.
 
-## 3. Chơi trên điện thoại
+Chưa bật bước này game vẫn chơi được, người chơi ở chế độ **ngoại tuyến** (điểm lưu trên máy).
 
-- Mở link bằng **Safari (iPhone)** hoặc **Chrome (Android)**.
-- **Không mở trong Zalo / Facebook / Messenger** (trình duyệt trong app thường chặn camera) → chọn "Mở bằng trình duyệt".
-- Bấm **Cho phép** khi được hỏi Camera và Chuyển động.
-- Cầm máy dọc, xoay người theo mũi tên và máy đo EMF bên phải.
-
-## 4. Cách chơi
+## 3. Cách chơi
 
 | Thao tác | Kết quả |
 |---|---|
-| Xoay điện thoại (hoặc kéo chuột trên máy tính) | Nhìn quanh, tìm ma |
-| Vuốt lá bùa lên phía ma | Ném bùa |
-| Ném khi vòng tròn **xanh lá** (nhỏ nhất) | Tỷ lệ bắt ×1.8 |
-| Dùng Bùa Vàng | Tỷ lệ bắt ×1.8 |
-| Hết bùa | Bấm **Thắp nhang** nhận 10 bùa |
+| Ghi danh bằng tên | Tên là duy nhất, hiện trên bảng xếp hạng |
+| Xoay điện thoại / kéo chuột | Nhìn quanh, theo mũi tên đỏ và máy đo EMF |
+| Vuốt bùa lên phía ma | Ném bùa, ném lúc vòng tròn **xanh lá** để tỷ lệ ×1.8 |
+| Hết thời gian **Tấn công sau** | Ma lao tới hù, mất 1 Dương khí |
+| Bắt hụt, ma phá bùa | Ma nổi giận, thời gian bị rút 4 giây |
+| Phong ấn thành công | +XP, +bùa, hồi 1 Dương khí |
+| Cạn 3 Dương khí | Bị trừ 100 XP, thắp nhang để hồi dương |
 
-Ma có 3 độ hiếm: Thường, Hiếm, Huyền thoại. Lên cấp càng cao, ma hiếm càng dễ gặp.
+## 4. Danh sách ma
+
+| Ma | Độ hiếm | Thời gian trước khi tấn công |
+|---|---|---|
+| Quỷ Khâu Mắt | Oán linh | 20s |
+| Oán Nhi Tầm Mẫu | Oán linh | 18s |
+| Xà Diện Huyết Nữ | Lệ quỷ | 15s |
+| Thi Cốt Mộc Nhân | Lệ quỷ | 16s |
+| Dạ Xoa Nghìn Mặt | Đại hung | 12s |
 
 ## 5. Tuỳ chỉnh nhanh
 
 | Muốn sửa | File |
 |---|---|
-| Thêm / đổi tên ma, màu, mô tả, tỷ lệ bắt | `src/ghosts.js` |
-| Tốc độ vòng tròn, góc nhìn, kích thước ma | Đầu file `src/App.jsx` |
-| Số bùa ban đầu | `src/lib/storage.js` |
-| Màu sắc, giao diện | `src/styles.css` |
+| Tên, mô tả, tỷ lệ bắt, thời gian tấn công của ma | `src/ghosts.js` |
+| Thêm ma mới | Ảnh PNG/WebP nền trong suốt vào `public/ghosts/`, khai báo trong `src/ghosts.js` |
+| XP bị trừ khi chết, thời gian lao tới, độ nổi giận | Đầu file `src/App.jsx` |
+| Số bùa, số Dương khí | `src/lib/storage.js` |
+| Luật chống hack điểm | `api/score.js` |
 
-## 6. (Tuỳ chọn) Chạy thử trên máy Windows
+## 6. Lưu ý
 
-Cài Node.js LTS tại https://nodejs.org, mở thư mục bằng VS Code, mở Terminal (Ctrl + `):
-
-```bash
-npm install
-npm run dev
-```
-
-Mở http://localhost:5173 → kéo chuột hoặc phím mũi tên để nhìn quanh.
-Camera điện thoại chỉ chạy qua HTTPS, nên test trên điện thoại hãy dùng link Vercel.
+- Mở bằng **Safari / Chrome**, không mở trong Zalo, Facebook (thường chặn camera).
+- Tên gắn với trình duyệt đã ghi danh. Đổi máy hoặc xoá dữ liệu trình duyệt sẽ không lấy lại được tên cũ.
+- Chạy thử trên máy: `npm install` rồi `npm run dev` (bảng xếp hạng chỉ chạy trên Vercel, local sẽ là ngoại tuyến).
 
 ## Cấu trúc
 
 ```
 san-ma/
-├── index.html
-├── package.json
-├── vite.config.js
-├── public/favicon.svg
+├── api/                   # Vercel Functions: ghi danh, gửi điểm, bảng xếp hạng
+├── public/ghosts/         # Ảnh 5 con ma (nền trong suốt)
 └── src/
-    ├── App.jsx            # Lõi game: camera, cảm biến, ném bùa, bắt ma
+    ├── App.jsx            # Lõi game: camera, cảm biến, ném bùa, ma tấn công
     ├── ghosts.js          # Danh sách ma
-    ├── styles.css
-    ├── components/        # Ghost, Talisman, Sổ Ma, thẻ bắt được, màn hình đầu
-    └── lib/               # Cảm biến xoay, âm thanh, lưu tiến độ
+    ├── components/        # Ghi danh, Sổ Ma, Bảng xếp hạng, thẻ phong ấn, cạn dương khí
+    └── lib/               # Cảm biến, âm thanh, lưu trữ, gọi API
 ```

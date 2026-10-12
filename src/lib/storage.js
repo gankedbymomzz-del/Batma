@@ -1,23 +1,43 @@
-// Lưu tiến độ vào trình duyệt (localStorage)
-const KEY = 'san-ma-save-v1';
+// Lưu tiến độ theo từng tên thợ săn trong trình duyệt
+const PREFIX = 'san-ma-save-v2:';
+const PLAYER_KEY = 'san-ma-player';
+const TOKENS_KEY = 'san-ma-tokens';
+
 export const XP_PER_LEVEL = 150;
+export const MAX_HP = 3;
 
-export const makeDefault = () => ({ xp: 0, total: 0, caught: {}, talismans: { paper: 20, gold: 3 } });
+export const nameKey = (n) => String(n || '').normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
 
-export function loadSave() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return makeDefault();
-    const d = JSON.parse(raw);
-    const base = makeDefault();
-    return { ...base, ...d, caught: { ...(d.caught || {}) }, talismans: { ...base.talismans, ...(d.talismans || {}) } };
-  } catch {
-    return makeDefault();
-  }
+export const makeDefault = () => ({
+  xp: 0, total: 0, caught: {}, talismans: { paper: 20, gold: 3 }, hp: MAX_HP,
+});
+
+const read = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* bỏ qua */ } };
+
+export function loadSave(name) {
+  const d = read(PREFIX + nameKey(name));
+  const base = makeDefault();
+  if (!d) return base;
+  return {
+    ...base, ...d,
+    caught: { ...(d.caught || {}) },
+    talismans: { ...base.talismans, ...(d.talismans || {}) },
+    hp: typeof d.hp === 'number' ? d.hp : MAX_HP,
+  };
 }
+export const writeSave = (name, s) => write(PREFIX + nameKey(name), s);
 
-export function writeSave(s) {
-  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* bỏ qua */ }
+export const loadPlayer = () => read(PLAYER_KEY);
+export function savePlayer(p) {
+  if (p) write(PLAYER_KEY, p);
+  else { try { localStorage.removeItem(PLAYER_KEY); } catch { /* bỏ qua */ } }
+}
+export const getToken = (name) => (read(TOKENS_KEY) || {})[nameKey(name)] || null;
+export function setToken(name, token) {
+  const all = read(TOKENS_KEY) || {};
+  all[nameKey(name)] = token;
+  write(TOKENS_KEY, all);
 }
 
 export function levelFromXp(xp) {

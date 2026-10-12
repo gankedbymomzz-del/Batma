@@ -1,19 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import { RARITY, TALISMANS, pickGhost } from './ghosts.js';
+import { RARITY, TALISMANS, GHOSTS, pickGhost } from './ghosts.js';
 import { cameraDirection, wrap180, requestOrientationPermission } from './lib/orientation.js';
 import { sfx, unlockAudio } from './lib/sound.js';
-import { loadSave, writeSave, levelFromXp, makeDefault } from './lib/storage.js';
+import {
+  loadSave, writeSave, levelFromXp, loadPlayer, savePlayer, getToken, setToken, MAX_HP,
+} from './lib/storage.js';
+import { api } from './lib/api.js';
 import Ghost from './components/Ghost.jsx';
 import Talisman from './components/Talisman.jsx';
 import Dex from './components/Dex.jsx';
+import Leaderboard from './components/Leaderboard.jsx';
 import StartScreen from './components/StartScreen.jsx';
 import CaughtCard from './components/CaughtCard.jsx';
+import DeadCard from './components/DeadCard.jsx';
 
 // ====== THÔNG SỐ GAME ======
 const FOV = 60;            // góc nhìn ngang của màn hình (độ)
 const RING_PERIOD = 1800;  // chu kỳ vòng tròn co lại (ms)
-const GHOST_PX = 130;      // kích thước ma chuẩn (px)
+const GHOST_PX = 120;      // bề rộng ma chuẩn (px)
 const HORIZON = 0.42;      // vị trí đường chân trời (tỷ lệ chiều cao)
+const RUSH_MS = 900;       // thời gian ma lao tới
+const SCARE_MS = 1300;     // thời gian hù doạ
+const DEATH_XP = 100;      // XP bị trừ khi cạn dương khí
+const ANGER_SEC = 4;       // bắt hụt → ma nổi giận, rút ngắn thời gian
 
 const ZONE = {
   great: { mult: 1.8, label: 'Tuyệt vời!' },
@@ -27,21 +36,27 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const vibrate = (p) => { try { navigator.vibrate?.(p); } catch { /* bỏ qua */ } };
 
 export default function App() {
+  const [player, setPlayer] = useState(loadPlayer);
+  const [save, setSave] = useState(() => loadSave(loadPlayer()?.name || '_guest'));
+  const [rank, setRank] = useState(null);
   const [started, setStarted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [camOk, setCamOk] = useState(false);
   const [dragHint, setDragHint] = useState(false);
-  const [save, setSave] = useState(loadSave);
-  const [phase, setPhaseState] = useState('scan'); // scan | hunt | throw | shake | caught
+  const [phase, setPhaseState] = useState('scan'); // scan | hunt | throw | shake | attack | caught | dead
   const [ghost, setGhost] = useState(null);
   const [sucked, setSucked] = useState(false);
   const [talisman, setTalisman] = useState('paper');
   const [toast, setToast] = useState(null);
-  const [showDex, setShowDex] = useState(false);
+  const [panel, setPanel] = useState(null); // 'dex' | 'board'
   const [caught, setCaught] = useState(null);
+  const [dead, setDead] = useState(null);
+  const [scare, setScare] = useState(null);
+  const [hurt, setHurt] = useState(0);
 
   const phaseRef = useRef('scan');
   const saveRef = useRef(save);
+  const playerRef = useRef(player);
   const ghostRef = useRef(null);
   const view = useRef({ sensorH: 0, sensorP: 0, dragH: 0, dragP: 0, h: 0, p: 0 });
   const videoRef = useRef(null);
@@ -50,10 +65,13 @@ export default function App() {
   const ringRef = useRef(null);
   const arrowRef = useRef(null);
   const emfRef = useRef(null);
+  const timerRef = useRef(null);
+  const timerTextRef = useRef(null);
   const talRef = useRef(null);
   const talInnerRef = useRef(null);
   const throwRef = useRef(null);
   const stageDrag = useRef(null);
+  const attackRef = useRef(null);
   const timers = useRef([]);
   const toastTimer = useRef(null);
 
@@ -65,16 +83,58 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), ms);
   };
 
-  useEffect(() => { saveRef.current = save; writeSave(save); }, [save]);
+  // Lưu tiến độ theo tên
+  useEffect(() => {
+    saveRef.current = save;
+    writeSave(player?.name || '_guest', save);
+  }, [save, player]);
+  useEffect(() => { playerRef.current = player; }, [player]);
 
   useEffect(() => () => {
     timers.current.forEach(clearTimeout);
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, []);
 
+  // ====== GHI DANH ======
+  const applyPlayer = (p) => {
+    savePlayer(p);
+    setPlayer(p);
+    setSave(loadSave(p.name));
+    setRank(null);
+  };
+
+  const login = async (name) => {
+    try {
+      const r = await api.register(name, getToken(name));
+      setToken(r.name, r.token);
+      applyPlayer({ name: r.name, token: r.token });
+    } catch (e) {
+      if (e.status === 400 || e.status === 409) throw e;
+      applyPlayer({ name, token: null, offline: true }); // chưa có máy chủ → chơi ngoại tuyến
+    }
+  };
+
+  const logout = () => { savePlayer(null); setPlayer(null); };
+
+  // Đồng bộ điểm lên bảng xếp hạng (gom lại sau 1.2s)
+  useEffect(() => {
+    if (!player?.token) return undefined;
+    const t = setTimeout(async () => {
+      try {
+        const r = await api.score({
+          name: player.name, token: player.token,
+          xp: save.xp, total: save.total, species: Object.keys(save.caught).length,
+        });
+        setRank(r.rank);
+        if (r.clamped) setSave((s) => ({ ...s, xp: r.xp }));
+      } catch { /* mất mạng: bỏ qua, lần sau gửi lại */ }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [save.xp, save.total, player]);
+
   // ====== BẮT ĐẦU: xin quyền cảm biến + camera (phải trong cú bấm) ======
   const start = async () => {
-    setLoading(true);
+    setStarting(true);
     unlockAudio();
     await requestOrientationPermission();
     try {
@@ -91,8 +151,9 @@ export default function App() {
       setCamOk(false);
       showToast('Không mở được camera, chuyển sang chế độ đêm', 2600);
     }
-    setLoading(false);
+    setStarting(false);
     setStarted(true);
+    if (saveRef.current.hp <= 0) setSave((s) => ({ ...s, hp: MAX_HP }));
   };
 
   // ====== CẢM BIẾN XOAY ======
@@ -111,7 +172,6 @@ export default function App() {
     return () => { window.removeEventListener('deviceorientation', onOri); clearTimeout(t); };
   }, [started]);
 
-  // Phím mũi tên cho máy tính
   useEffect(() => {
     if (!started) return undefined;
     const onKey = (e) => {
@@ -125,7 +185,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [started]);
 
-  // ====== VÒNG LẶP 60fps: vị trí ma, vòng tròn, mũi tên, máy đo EMF ======
+  // ====== VÒNG LẶP 60fps ======
   useEffect(() => {
     if (!started) return undefined;
     let raf;
@@ -146,18 +206,43 @@ export default function App() {
       let arrowOn = false;
 
       if (g) {
+        const dt = g.lastT ? Math.min(0.1, (now - g.lastT) / 1000) : 0;
+        g.lastT = now;
+        const m = g.def.move;
+
         if (ph === 'hunt' || ph === 'throw') {
           const t = (now - g.born) / 1000;
-          const m = g.def.move;
+          // thỉnh thoảng ma "chớp" sang chỗ khác
+          if (ph === 'hunt' && Math.random() < 0.004 * m) g.baseYaw += rand(-7, 7);
           g.yaw = g.baseYaw + Math.sin(t * 0.7) * m * 8 + Math.sin(t * 1.9) * m * 3;
           g.pitch = g.basePitch + Math.sin(t * 1.3) * m * 4;
         }
+
+        // Đồng hồ: chỉ chạy khi đang săn, dừng khi bùa đang bay / đang phong ấn
+        if (ph === 'hunt') {
+          g.timeLeft -= dt;
+          const sec = Math.ceil(g.timeLeft);
+          if (timerRef.current) timerRef.current.style.setProperty('--t', clamp(g.timeLeft / g.def.patience, 0, 1));
+          if (timerTextRef.current) timerTextRef.current.textContent = `${Math.max(0, sec)}s`;
+          if (sec <= 5 && sec > 0 && sec !== g.beat) { g.beat = sec; sfx.heartbeat(); vibrate(40); }
+          if (g.timeLeft <= 0 && !g.attacking) { g.attacking = true; attackRef.current?.(); }
+        }
+
+        // Ma lao thẳng vào mặt người chơi
+        g.scale = 1;
+        if (ph === 'attack') {
+          const p = clamp((now - g.attackStart) / RUSH_MS, 0, 1);
+          g.yaw += wrap180(v.h - g.yaw) * 0.15;
+          g.pitch += (v.p - g.pitch) * 0.15;
+          g.scale = 1 + p * p * 7;
+        }
+
         const dx = wrap180(g.yaw - v.h) * ppd;
         const dy = -(g.pitch - v.p) * ppd;
         g.sx = W / 2 + dx;
         g.sy = cy + dy;
         if (ghostElRef.current) {
-          ghostElRef.current.style.transform = `translate3d(${g.sx}px, ${g.sy}px, 0) translate(-50%, -50%)`;
+          ghostElRef.current.style.transform = `translate3d(${g.sx}px, ${g.sy}px, 0) translate(-50%, -50%) scale(${g.scale})`;
         }
 
         g.ring = 1 - ((now % RING_PERIOD) / RING_PERIOD) * 0.7;
@@ -168,7 +253,7 @@ export default function App() {
 
         emf = Math.max(emf, 1 - Math.abs(wrap180(g.yaw - v.h)) / 150);
 
-        const off = g.sx < 30 || g.sx > W - 30 || g.sy < 90 || g.sy > H - 220;
+        const off = g.sx < 30 || g.sx > W - 30 || g.sy < 90 || g.sy > H - 230;
         if (off && ph === 'hunt' && arrowRef.current) {
           arrowOn = true;
           const ang = Math.atan2(dy, dx);
@@ -189,34 +274,79 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [started]);
 
-  // ====== XUẤT HIỆN MA ======
+  // ====== MA XUẤT HIỆN ======
   const spawn = () => {
     const def = pickGhost(levelFromXp(saveRef.current.xp).level);
     const side = Math.random() < 0.5 ? -1 : 1;
     const baseYaw = (view.current.h + side * rand(35, 140) + 360) % 360;
     ghostRef.current = {
-      def, baseYaw, basePitch: rand(-4, 14), yaw: baseYaw, pitch: 0,
-      born: performance.now(), sx: -999, sy: -999, ring: 1,
+      def, baseYaw, basePitch: rand(-4, 12), yaw: baseYaw, pitch: 0,
+      born: performance.now(), sx: -999, sy: -999, ring: 1, scale: 1,
+      timeLeft: def.patience, beat: null, attacking: false, lastT: 0,
     };
     setSucked(false);
     setGhost(def);
     setPhase('hunt');
     sfx.spawn();
     vibrate(80);
-    showToast(
-      def.rarity === 'legendary' ? 'Sóng ma cực mạnh, Huyền thoại đang ở gần!' : 'Phát hiện sóng ma, xoay máy theo mũi tên',
-      2200,
-    );
+    const msg = {
+      common: 'Có thứ gì đó đang nhìn bạn…',
+      rare: 'Lạnh sống lưng. Một lệ quỷ đang ở gần',
+      legendary: 'Hàng trăm tiếng gào thét vang lên…',
+    };
+    showToast(msg[def.rarity], 2200);
   };
 
   useEffect(() => {
     if (!started || phase !== 'scan') return undefined;
-    const t = setTimeout(spawn, rand(1500, 3500));
+    const t = setTimeout(spawn, rand(2000, 4500));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, phase]);
 
-  // ====== BÙA: kéo, thả, ném ======
+  // ====== MA TẤN CÔNG ======
+  const startAttack = () => {
+    const g = ghostRef.current;
+    if (!g) return;
+    g.attackStart = performance.now();
+    setPhase('attack');
+    sfx.rush();
+    vibrate(250);
+
+    later(() => {
+      setScare(g.def);
+      sfx.scream();
+      vibrate([300, 80, 500]);
+
+      later(() => {
+        setScare(null);
+        ghostRef.current = null;
+        setGhost(null);
+        const hp = saveRef.current.hp - 1;
+        setHurt((n) => n + 1);
+        if (hp <= 0) {
+          const lost = Math.min(DEATH_XP, saveRef.current.xp);
+          setSave((s) => ({ ...s, hp: 0, xp: s.xp - lost }));
+          setDead({ def: g.def, lost });
+          setPhase('dead');
+        } else {
+          setSave((s) => ({ ...s, hp }));
+          showToast(`Bị ${g.def.name} tấn công, mất 1 dương khí`, 2200);
+          setPhase('scan');
+        }
+      }, SCARE_MS);
+    }, RUSH_MS);
+  };
+  attackRef.current = startAttack;
+
+  const revive = () => {
+    sfx.revive();
+    setSave((s) => ({ ...s, hp: MAX_HP }));
+    setDead(null);
+    setPhase('scan');
+  };
+
+  // ====== BÙA ======
   const resetTalisman = () => {
     const el = talRef.current;
     if (!el) return;
@@ -237,7 +367,7 @@ export default function App() {
 
   const onTalDown = (e) => {
     if (phaseRef.current !== 'hunt') return;
-    let kind = talisman;
+    const kind = talisman;
     if (save.talismans[kind] <= 0) {
       const other = kind === 'paper' ? 'gold' : 'paper';
       if (save.talismans[other] > 0) {
@@ -270,6 +400,7 @@ export default function App() {
     const d = throwRef.current;
     if (!d || d.id !== e.pointerId) return;
     throwRef.current = null;
+    if (phaseRef.current !== 'hunt') { resetTalisman(); return; }
     const first = d.pts[0];
     const dt = Math.max(16, performance.now() - first.t);
     const vx = (e.clientX - first.x) / dt;
@@ -301,8 +432,12 @@ export default function App() {
     later(() => {
       const gg = ghostRef.current;
       if (!gg) return;
-      const hitR = GHOST_PX * gg.def.size * 0.45 + 14;
-      const hit = Math.hypot(landX - gg.sx, landY - gg.sy) < hitR;
+      // vùng trúng hình elip theo dáng ma
+      const w = GHOST_PX * gg.def.size;
+      const h = w * gg.def.ratio;
+      const nx = (landX - gg.sx) / (w * 0.55);
+      const ny = (landY - gg.sy) / (h * 0.5);
+      const hit = nx * nx + ny * ny < 1;
       if (!hit) {
         sfx.miss();
         showToast('Trượt rồi, thử lại!', 1200);
@@ -348,14 +483,16 @@ export default function App() {
     const after = levelFromXp(prev.xp + def.xp).level;
     const levelUp = after > before;
     const bonusPaper = Math.random() < 0.5 ? 2 : 1;
+    const hpGain = prev.hp < MAX_HP;
     setSave((s) => ({
       ...s,
       xp: s.xp + def.xp,
       total: s.total + 1,
+      hp: Math.min(MAX_HP, s.hp + 1),
       caught: { ...s.caught, [def.id]: (s.caught[def.id] || 0) + 1 },
       talismans: { paper: s.talismans.paper + bonusPaper, gold: s.talismans.gold + (levelUp ? 3 : 0) },
     }));
-    setCaught({ def, xp: def.xp, levelUp, level: after, isNew: !prev.caught[def.id], bonusPaper });
+    setCaught({ def, xp: def.xp, levelUp, level: after, isNew: !prev.caught[def.id], bonusPaper, hpGain });
     ghostRef.current = null;
     setGhost(null);
     setSucked(false);
@@ -365,17 +502,22 @@ export default function App() {
 
   const onBreakFree = (def) => {
     popTalisman();
+    const g = ghostRef.current;
     if (Math.random() < def.flee) {
       sfx.escape();
-      showToast(`${def.name} đã bỏ chạy mất!`, 1800);
+      showToast(`${def.name} đã biến mất vào bóng tối`, 1800);
       ghostRef.current = null;
       setGhost(null);
       setSucked(false);
       setPhase('scan');
     } else {
-      sfx.hit();
-      showToast('Ma thoát khỏi bùa, ném tiếp!', 1400);
-      if (ghostRef.current) ghostRef.current.born = performance.now();
+      sfx.angry();
+      vibrate(120);
+      showToast('Ma phá bùa và nổi giận!', 1500);
+      if (g) {
+        g.born = performance.now();
+        g.timeLeft = Math.max(2.5, g.timeLeft - ANGER_SEC);
+      }
       setSucked(false);
       setPhase('hunt');
     }
@@ -390,9 +532,7 @@ export default function App() {
     showToast('Nhận 10 Bùa Giấy');
   };
 
-  const resetProgress = () => { setSave(makeDefault()); setShowDex(false); showToast('Đã xoá tiến độ'); };
-
-  // ====== KÉO MÀN HÌNH ĐỂ NHÌN QUANH (máy tính / máy không có cảm biến) ======
+  // ====== KÉO MÀN HÌNH ĐỂ NHÌN QUANH ======
   const onStageDown = (e) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     stageDrag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, h: view.current.dragH, p: view.current.dragP };
@@ -411,15 +551,16 @@ export default function App() {
   const empty = save.talismans.paper + save.talismans.gold === 0;
   const canThrow = phase === 'hunt' && !empty;
   const ghostW = ghost ? GHOST_PX * ghost.size : 0;
+  const ghostH = ghost ? ghostW * ghost.ratio : 0;
 
-  let status = 'Đang dò sóng ma…';
-  if (phase === 'hunt' && ghost) status = `${RARITY[ghost.rarity].label} · tỷ lệ gốc ${Math.round(ghost.catch * 100)}%`;
+  let status = 'Đang dò âm khí…';
   if (phase === 'throw') status = 'Bùa đang bay…';
   if (phase === 'shake') status = 'Đang phong ấn…';
+  if (phase === 'attack') status = 'Nó đang lao tới!';
   if (phase === 'caught') status = 'Phong ấn thành công';
 
   return (
-    <div className="app">
+    <div className={`app ${scare ? 'shaking' : ''}`}>
       <video ref={videoRef} className={`cam ${camOk ? 'on' : ''}`} playsInline muted autoPlay />
       {(!started || !camOk) && (
         <div className="night">
@@ -427,9 +568,13 @@ export default function App() {
           <div className="fog f2" />
         </div>
       )}
-      <div className="vignette" />
+      <div className="grain" />
+      <div className={`vignette ${save.hp <= 1 && started ? 'danger' : ''}`} />
+      {hurt > 0 && <div key={hurt} className="hurt-flash" />}
 
-      {!started && <StartScreen onStart={start} loading={loading} />}
+      {!started && (
+        <StartScreen player={player} onLogin={login} onLogout={logout} onStart={start} starting={starting} />
+      )}
 
       {started && (
         <>
@@ -441,17 +586,23 @@ export default function App() {
             onPointerCancel={onStageUp}
           >
             {ghost && (
-              <div ref={ghostElRef} className="ghost-wrap" style={{ width: ghostW, height: ghostW * 1.2 }}>
-                <div className="ghost-tag" style={{ '--rc': RARITY[ghost.rarity].color }}>
-                  {ghost.name}<em>{RARITY[ghost.rarity].label}</em>
-                </div>
+              <div
+                ref={ghostElRef}
+                className={`ghost-wrap ${phase === 'attack' ? 'rushing' : ''}`}
+                style={{ width: ghostW, height: ghostH }}
+              >
+                {phase === 'hunt' && (
+                  <div className="ghost-tag" style={{ '--rc': RARITY[ghost.rarity].color }}>
+                    {ghost.name}<em>{RARITY[ghost.rarity].label}</em>
+                  </div>
+                )}
                 <div
                   ref={ringRef}
                   className="ring"
-                  style={{ width: ghostW * 1.3, height: ghostW * 1.3, display: phase === 'hunt' ? 'block' : 'none' }}
+                  style={{ width: ghostW * 1.4, height: ghostW * 1.4, display: phase === 'hunt' ? 'block' : 'none' }}
                 />
                 <div className={`ghost-body ${sucked ? 'sucked' : ''}`}>
-                  <div className="ghost-bob"><Ghost def={ghost} size={ghostW} /></div>
+                  <div className="ghost-haunt"><Ghost def={ghost} size={ghostW} /></div>
                 </div>
               </div>
             )}
@@ -460,22 +611,43 @@ export default function App() {
           </div>
 
           <header className="hud-top">
-            <div className="lv">
-              <span className="lv-num">Cấp {level}</span>
-              <span className="xp"><i style={{ width: `${progress * 100}%` }} /></span>
+            <div className="hud-left">
+              <div className="lv">
+                <span className="lv-num">Cấp {level}</span>
+                <span className="xp"><i style={{ width: `${progress * 100}%` }} /></span>
+              </div>
+              <div className="hp" aria-label={`Dương khí ${save.hp}/${MAX_HP}`}>
+                {Array.from({ length: MAX_HP }, (_, i) => (
+                  <span key={i} className={i < save.hp ? 'on' : ''} />
+                ))}
+                <small>Dương khí</small>
+              </div>
             </div>
-            <button className="dex-btn" onClick={() => setShowDex(true)}>
-              Sổ Ma <b>{Object.keys(save.caught).length}</b>
-            </button>
+            <div className="hud-right">
+              <button className="hud-btn" onClick={() => setPanel('board')}>
+                {rank ? `Hạng ${rank}` : 'Xếp hạng'}
+              </button>
+              <button className="hud-btn" onClick={() => setPanel('dex')}>
+                Sổ Ma <b>{Object.keys(save.caught).length}/{GHOSTS.length}</b>
+              </button>
+            </div>
           </header>
 
-          <div className="emf" ref={emfRef} aria-label="Máy đo sóng ma">
+          <div className="emf" ref={emfRef} aria-label="Máy đo âm khí">
             {[0, 1, 2, 3, 4].map((i) => <span key={i} className="bar" />)}
             <small>EMF</small>
           </div>
 
           <footer className="hud-bottom">
-            <div className={`status ${phase}`}>{status}</div>
+            {phase === 'hunt' && ghost ? (
+              <div className="timer" ref={timerRef}>
+                <span className="timer-label">Tấn công sau</span>
+                <span className="timer-bar"><i /></span>
+                <b ref={timerTextRef}>{ghost.patience}s</b>
+              </div>
+            ) : (
+              <div className={`status ${phase}`}>{status}</div>
+            )}
 
             <div className={`tal-slot ${canThrow ? '' : 'disabled'}`}>
               <div
@@ -485,7 +657,7 @@ export default function App() {
                 onPointerMove={onTalMove}
                 onPointerUp={onTalUp}
                 onPointerCancel={onTalUp}
-                style={{ visibility: phase === 'caught' ? 'hidden' : 'visible' }}
+                style={{ visibility: phase === 'caught' || phase === 'dead' ? 'hidden' : 'visible' }}
               >
                 <div ref={talInnerRef} className={`tal-inner ${talisman}`}>
                   <Talisman kind={talisman} />
@@ -512,15 +684,24 @@ export default function App() {
             ) : (
               <p className="hint">
                 {phase === 'hunt'
-                  ? 'Vuốt bùa lên phía ma, ném lúc vòng tròn nhỏ nhất'
-                  : dragHint ? 'Kéo màn hình để nhìn xung quanh' : 'Xoay người chậm để dò sóng'}
+                  ? 'Vuốt bùa lên phía ma, ném lúc vòng tròn xanh'
+                  : dragHint ? 'Kéo màn hình để nhìn xung quanh' : 'Xoay người chậm để dò âm khí'}
               </p>
             )}
           </footer>
 
           {toast && <div key={toast.id} className="toast">{toast.text}</div>}
+
+          {scare && (
+            <div className="jumpscare" aria-hidden="true">
+              <img src={scare.img} alt="" />
+            </div>
+          )}
+
           {caught && <CaughtCard data={caught} onClose={closeCaught} />}
-          {showDex && <Dex save={save} onClose={() => setShowDex(false)} onReset={resetProgress} />}
+          {dead && <DeadCard data={dead} onRevive={revive} />}
+          {panel === 'dex' && <Dex save={save} onClose={() => setPanel(null)} />}
+          {panel === 'board' && <Leaderboard player={player} onClose={() => setPanel(null)} />}
         </>
       )}
 
