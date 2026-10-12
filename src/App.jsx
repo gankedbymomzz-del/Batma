@@ -1,0 +1,530 @@
+import { useEffect, useRef, useState } from 'react';
+import { RARITY, TALISMANS, pickGhost } from './ghosts.js';
+import { cameraDirection, wrap180, requestOrientationPermission } from './lib/orientation.js';
+import { sfx, unlockAudio } from './lib/sound.js';
+import { loadSave, writeSave, levelFromXp, makeDefault } from './lib/storage.js';
+import Ghost from './components/Ghost.jsx';
+import Talisman from './components/Talisman.jsx';
+import Dex from './components/Dex.jsx';
+import StartScreen from './components/StartScreen.jsx';
+import CaughtCard from './components/CaughtCard.jsx';
+
+// ====== THÔNG SỐ GAME ======
+const FOV = 60;            // góc nhìn ngang của màn hình (độ)
+const RING_PERIOD = 1800;  // chu kỳ vòng tròn co lại (ms)
+const GHOST_PX = 130;      // kích thước ma chuẩn (px)
+const HORIZON = 0.42;      // vị trí đường chân trời (tỷ lệ chiều cao)
+
+const ZONE = {
+  great: { mult: 1.8, label: 'Tuyệt vời!' },
+  good: { mult: 1.35, label: 'Tốt lắm!' },
+  ok: { mult: 1, label: 'Trúng rồi!' },
+};
+const ringZone = (s) => (s < 0.45 ? 'great' : s < 0.7 ? 'good' : 'ok');
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const vibrate = (p) => { try { navigator.vibrate?.(p); } catch { /* bỏ qua */ } };
+
+export default function App() {
+  const [started, setStarted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [camOk, setCamOk] = useState(false);
+  const [dragHint, setDragHint] = useState(false);
+  const [save, setSave] = useState(loadSave);
+  const [phase, setPhaseState] = useState('scan'); // scan | hunt | throw | shake | caught
+  const [ghost, setGhost] = useState(null);
+  const [sucked, setSucked] = useState(false);
+  const [talisman, setTalisman] = useState('paper');
+  const [toast, setToast] = useState(null);
+  const [showDex, setShowDex] = useState(false);
+  const [caught, setCaught] = useState(null);
+
+  const phaseRef = useRef('scan');
+  const saveRef = useRef(save);
+  const ghostRef = useRef(null);
+  const view = useRef({ sensorH: 0, sensorP: 0, dragH: 0, dragP: 0, h: 0, p: 0 });
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const ghostElRef = useRef(null);
+  const ringRef = useRef(null);
+  const arrowRef = useRef(null);
+  const emfRef = useRef(null);
+  const talRef = useRef(null);
+  const talInnerRef = useRef(null);
+  const throwRef = useRef(null);
+  const stageDrag = useRef(null);
+  const timers = useRef([]);
+  const toastTimer = useRef(null);
+
+  const setPhase = (p) => { phaseRef.current = p; setPhaseState(p); };
+  const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
+  const showToast = (text, ms = 1700) => {
+    clearTimeout(toastTimer.current);
+    setToast({ text, id: Date.now() });
+    toastTimer.current = setTimeout(() => setToast(null), ms);
+  };
+
+  useEffect(() => { saveRef.current = save; writeSave(save); }, [save]);
+
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
+
+  // ====== BẮT ĐẦU: xin quyền cảm biến + camera (phải trong cú bấm) ======
+  const start = async () => {
+    setLoading(true);
+    unlockAudio();
+    await requestOrientationPermission();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      const v = videoRef.current;
+      v.srcObject = stream;
+      await v.play().catch(() => {});
+      setCamOk(true);
+    } catch {
+      setCamOk(false);
+      showToast('Không mở được camera, chuyển sang chế độ đêm', 2600);
+    }
+    setLoading(false);
+    setStarted(true);
+  };
+
+  // ====== CẢM BIẾN XOAY ======
+  useEffect(() => {
+    if (!started) return undefined;
+    let got = false;
+    const onOri = (e) => {
+      if (e.alpha == null) return;
+      got = true;
+      const { heading, pitch } = cameraDirection(e.alpha, e.beta ?? 0, e.gamma ?? 0);
+      view.current.sensorH = heading;
+      view.current.sensorP = pitch;
+    };
+    window.addEventListener('deviceorientation', onOri);
+    const t = setTimeout(() => { if (!got) setDragHint(true); }, 1500);
+    return () => { window.removeEventListener('deviceorientation', onOri); clearTimeout(t); };
+  }, [started]);
+
+  // Phím mũi tên cho máy tính
+  useEffect(() => {
+    if (!started) return undefined;
+    const onKey = (e) => {
+      const v = view.current;
+      if (e.key === 'ArrowLeft') v.dragH -= 6;
+      if (e.key === 'ArrowRight') v.dragH += 6;
+      if (e.key === 'ArrowUp') v.dragP = clamp(v.dragP + 4, -60, 60);
+      if (e.key === 'ArrowDown') v.dragP = clamp(v.dragP - 4, -60, 60);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [started]);
+
+  // ====== VÒNG LẶP 60fps: vị trí ma, vòng tròn, mũi tên, máy đo EMF ======
+  useEffect(() => {
+    if (!started) return undefined;
+    let raf;
+    const loop = (now) => {
+      const v = view.current;
+      const tH = v.sensorH + v.dragH;
+      const tP = clamp(v.sensorP + v.dragP, -80, 80);
+      v.h = (v.h + wrap180(tH - v.h) * 0.25 + 360) % 360;
+      v.p += (tP - v.p) * 0.25;
+
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const ppd = W / FOV;
+      const cy = H * HORIZON;
+      const g = ghostRef.current;
+      const ph = phaseRef.current;
+      let emf = 0.05 + Math.random() * 0.12;
+      let arrowOn = false;
+
+      if (g) {
+        if (ph === 'hunt' || ph === 'throw') {
+          const t = (now - g.born) / 1000;
+          const m = g.def.move;
+          g.yaw = g.baseYaw + Math.sin(t * 0.7) * m * 8 + Math.sin(t * 1.9) * m * 3;
+          g.pitch = g.basePitch + Math.sin(t * 1.3) * m * 4;
+        }
+        const dx = wrap180(g.yaw - v.h) * ppd;
+        const dy = -(g.pitch - v.p) * ppd;
+        g.sx = W / 2 + dx;
+        g.sy = cy + dy;
+        if (ghostElRef.current) {
+          ghostElRef.current.style.transform = `translate3d(${g.sx}px, ${g.sy}px, 0) translate(-50%, -50%)`;
+        }
+
+        g.ring = 1 - ((now % RING_PERIOD) / RING_PERIOD) * 0.7;
+        if (ringRef.current) {
+          ringRef.current.style.transform = `translate(-50%, -50%) scale(${g.ring})`;
+          ringRef.current.dataset.zone = ringZone(g.ring);
+        }
+
+        emf = Math.max(emf, 1 - Math.abs(wrap180(g.yaw - v.h)) / 150);
+
+        const off = g.sx < 30 || g.sx > W - 30 || g.sy < 90 || g.sy > H - 220;
+        if (off && ph === 'hunt' && arrowRef.current) {
+          arrowOn = true;
+          const ang = Math.atan2(dy, dx);
+          const ex = W / 2 + Math.cos(ang) * (W / 2 - 36);
+          const ey = cy + Math.sin(ang) * Math.max(60, Math.min(cy - 90, H * 0.3));
+          arrowRef.current.style.transform = `translate(${ex}px, ${ey}px) translate(-50%, -50%) rotate(${ang}rad)`;
+        }
+      }
+
+      if (arrowRef.current) arrowRef.current.style.opacity = arrowOn ? '1' : '0';
+      if (emfRef.current) {
+        const lit = Math.ceil(clamp(emf, 0, 1) * 5);
+        emfRef.current.querySelectorAll('.bar').forEach((b, i) => b.classList.toggle('on', i < lit));
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [started]);
+
+  // ====== XUẤT HIỆN MA ======
+  const spawn = () => {
+    const def = pickGhost(levelFromXp(saveRef.current.xp).level);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const baseYaw = (view.current.h + side * rand(35, 140) + 360) % 360;
+    ghostRef.current = {
+      def, baseYaw, basePitch: rand(-4, 14), yaw: baseYaw, pitch: 0,
+      born: performance.now(), sx: -999, sy: -999, ring: 1,
+    };
+    setSucked(false);
+    setGhost(def);
+    setPhase('hunt');
+    sfx.spawn();
+    vibrate(80);
+    showToast(
+      def.rarity === 'legendary' ? 'Sóng ma cực mạnh, Huyền thoại đang ở gần!' : 'Phát hiện sóng ma, xoay máy theo mũi tên',
+      2200,
+    );
+  };
+
+  useEffect(() => {
+    if (!started || phase !== 'scan') return undefined;
+    const t = setTimeout(spawn, rand(1500, 3500));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started, phase]);
+
+  // ====== BÙA: kéo, thả, ném ======
+  const resetTalisman = () => {
+    const el = talRef.current;
+    if (!el) return;
+    el.style.transition = 'transform .3s ease-out';
+    el.style.transform = '';
+  };
+
+  const popTalisman = () => {
+    const el = talRef.current;
+    const inner = talInnerRef.current;
+    if (!el || !inner) return;
+    el.style.transition = 'none';
+    el.style.transform = '';
+    inner.classList.remove('wobble', 'pop');
+    void inner.offsetWidth;
+    inner.classList.add('pop');
+  };
+
+  const onTalDown = (e) => {
+    if (phaseRef.current !== 'hunt') return;
+    let kind = talisman;
+    if (save.talismans[kind] <= 0) {
+      const other = kind === 'paper' ? 'gold' : 'paper';
+      if (save.talismans[other] > 0) {
+        setTalisman(other);
+        showToast(`Hết ${TALISMANS[kind].label}, đã chuyển sang ${TALISMANS[other].label}`);
+      } else {
+        showToast('Hết bùa rồi, bấm Thắp nhang để nhận thêm');
+      }
+      return;
+    }
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const r = talRef.current.getBoundingClientRect();
+    throwRef.current = {
+      id: e.pointerId, kind, x0: e.clientX, y0: e.clientY,
+      cx: r.left + r.width / 2, cy: r.top + r.height / 2,
+      pts: [{ x: e.clientX, y: e.clientY, t: performance.now() }],
+    };
+    talRef.current.style.transition = 'none';
+  };
+
+  const onTalMove = (e) => {
+    const d = throwRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    talRef.current.style.transform = `translate(${e.clientX - d.x0}px, ${e.clientY - d.y0}px)`;
+    d.pts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    if (d.pts.length > 6) d.pts.shift();
+  };
+
+  const onTalUp = (e) => {
+    const d = throwRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    throwRef.current = null;
+    const first = d.pts[0];
+    const dt = Math.max(16, performance.now() - first.t);
+    const vx = (e.clientX - first.x) / dt;
+    const vy = (e.clientY - first.y) / dt;
+    if (d.y0 - e.clientY < 50 || vy > -0.35) { resetTalisman(); return; }
+    throwTalisman(e.clientX, e.clientY, vx, vy, d);
+  };
+
+  const throwTalisman = (ux, uy, vx, vy, d) => {
+    const g = ghostRef.current;
+    if (!g) { resetTalisman(); return; }
+    const { kind } = d;
+    const ringAt = g.ring;
+    setPhase('throw');
+    setSave((s) => ({ ...s, talismans: { ...s.talismans, [kind]: Math.max(0, s.talismans[kind] - 1) } }));
+    sfx.throw();
+
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const power = -vy / 1.1;
+    const landY = power >= 0.55 ? Math.min(g.sy, uy - 40) : uy - power * H * 0.55;
+    const t = (uy - landY) / Math.max(0.2, -vy);
+    const landX = clamp(ux + vx * t, -80, W + 80);
+
+    const el = talRef.current;
+    el.style.transition = 'transform .42s cubic-bezier(.2,.7,.3,1)';
+    el.style.transform = `translate(${landX - d.cx}px, ${landY - d.cy}px) scale(.5) rotate(540deg)`;
+
+    later(() => {
+      const gg = ghostRef.current;
+      if (!gg) return;
+      const hitR = GHOST_PX * gg.def.size * 0.45 + 14;
+      const hit = Math.hypot(landX - gg.sx, landY - gg.sy) < hitR;
+      if (!hit) {
+        sfx.miss();
+        showToast('Trượt rồi, thử lại!', 1200);
+        popTalisman();
+        setPhase('hunt');
+        return;
+      }
+      const zone = ZONE[ringZone(ringAt)];
+      const p = clamp(gg.def.catch * TALISMANS[kind].mult * zone.mult, 0.02, 0.97);
+      const success = Math.random() < p;
+      sfx.hit();
+      vibrate(50);
+      showToast(zone.label, 1100);
+      setSucked(true);
+      setPhase('shake');
+      runShakes(success, success ? 3 : Math.floor(Math.random() * 3), gg.def);
+    }, 440);
+  };
+
+  const runShakes = (success, n, def) => {
+    let i = 0;
+    const step = () => {
+      const inner = talInnerRef.current;
+      if (i < n) {
+        if (inner) { inner.classList.remove('wobble', 'pop'); void inner.offsetWidth; inner.classList.add('wobble'); }
+        sfx.shake();
+        vibrate(30);
+        i += 1;
+        later(step, 750);
+      } else {
+        inner?.classList.remove('wobble');
+        if (success) onCaught(def); else onBreakFree(def);
+      }
+    };
+    later(step, 450);
+  };
+
+  const onCaught = (def) => {
+    sfx.caught();
+    vibrate([40, 40, 120]);
+    const prev = saveRef.current;
+    const before = levelFromXp(prev.xp).level;
+    const after = levelFromXp(prev.xp + def.xp).level;
+    const levelUp = after > before;
+    const bonusPaper = Math.random() < 0.5 ? 2 : 1;
+    setSave((s) => ({
+      ...s,
+      xp: s.xp + def.xp,
+      total: s.total + 1,
+      caught: { ...s.caught, [def.id]: (s.caught[def.id] || 0) + 1 },
+      talismans: { paper: s.talismans.paper + bonusPaper, gold: s.talismans.gold + (levelUp ? 3 : 0) },
+    }));
+    setCaught({ def, xp: def.xp, levelUp, level: after, isNew: !prev.caught[def.id], bonusPaper });
+    ghostRef.current = null;
+    setGhost(null);
+    setSucked(false);
+    popTalisman();
+    setPhase('caught');
+  };
+
+  const onBreakFree = (def) => {
+    popTalisman();
+    if (Math.random() < def.flee) {
+      sfx.escape();
+      showToast(`${def.name} đã bỏ chạy mất!`, 1800);
+      ghostRef.current = null;
+      setGhost(null);
+      setSucked(false);
+      setPhase('scan');
+    } else {
+      sfx.hit();
+      showToast('Ma thoát khỏi bùa, ném tiếp!', 1400);
+      if (ghostRef.current) ghostRef.current.born = performance.now();
+      setSucked(false);
+      setPhase('hunt');
+    }
+  };
+
+  const closeCaught = () => { setCaught(null); setPhase('scan'); };
+
+  const refill = () => {
+    sfx.refill();
+    setSave((s) => ({ ...s, talismans: { ...s.talismans, paper: s.talismans.paper + 10 } }));
+    setTalisman('paper');
+    showToast('Nhận 10 Bùa Giấy');
+  };
+
+  const resetProgress = () => { setSave(makeDefault()); setShowDex(false); showToast('Đã xoá tiến độ'); };
+
+  // ====== KÉO MÀN HÌNH ĐỂ NHÌN QUANH (máy tính / máy không có cảm biến) ======
+  const onStageDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    stageDrag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, h: view.current.dragH, p: view.current.dragP };
+  };
+  const onStageMove = (e) => {
+    const s = stageDrag.current;
+    if (!s || s.id !== e.pointerId) return;
+    const k = FOV / window.innerWidth;
+    view.current.dragH = s.h - (e.clientX - s.x) * k;
+    view.current.dragP = clamp(s.p + (e.clientY - s.y) * k, -60, 60);
+  };
+  const onStageUp = (e) => { if (stageDrag.current?.id === e.pointerId) stageDrag.current = null; };
+
+  // ====== GIAO DIỆN ======
+  const { level, progress } = levelFromXp(save.xp);
+  const empty = save.talismans.paper + save.talismans.gold === 0;
+  const canThrow = phase === 'hunt' && !empty;
+  const ghostW = ghost ? GHOST_PX * ghost.size : 0;
+
+  let status = 'Đang dò sóng ma…';
+  if (phase === 'hunt' && ghost) status = `${RARITY[ghost.rarity].label} · tỷ lệ gốc ${Math.round(ghost.catch * 100)}%`;
+  if (phase === 'throw') status = 'Bùa đang bay…';
+  if (phase === 'shake') status = 'Đang phong ấn…';
+  if (phase === 'caught') status = 'Phong ấn thành công';
+
+  return (
+    <div className="app">
+      <video ref={videoRef} className={`cam ${camOk ? 'on' : ''}`} playsInline muted autoPlay />
+      {(!started || !camOk) && (
+        <div className="night">
+          <div className="fog f1" />
+          <div className="fog f2" />
+        </div>
+      )}
+      <div className="vignette" />
+
+      {!started && <StartScreen onStart={start} loading={loading} />}
+
+      {started && (
+        <>
+          <div
+            className="stage"
+            onPointerDown={onStageDown}
+            onPointerMove={onStageMove}
+            onPointerUp={onStageUp}
+            onPointerCancel={onStageUp}
+          >
+            {ghost && (
+              <div ref={ghostElRef} className="ghost-wrap" style={{ width: ghostW, height: ghostW * 1.2 }}>
+                <div className="ghost-tag" style={{ '--rc': RARITY[ghost.rarity].color }}>
+                  {ghost.name}<em>{RARITY[ghost.rarity].label}</em>
+                </div>
+                <div
+                  ref={ringRef}
+                  className="ring"
+                  style={{ width: ghostW * 1.3, height: ghostW * 1.3, display: phase === 'hunt' ? 'block' : 'none' }}
+                />
+                <div className={`ghost-body ${sucked ? 'sucked' : ''}`}>
+                  <div className="ghost-bob"><Ghost def={ghost} size={ghostW} /></div>
+                </div>
+              </div>
+            )}
+            <div ref={arrowRef} className="arrow" aria-hidden="true">➤</div>
+            <div className="reticle" />
+          </div>
+
+          <header className="hud-top">
+            <div className="lv">
+              <span className="lv-num">Cấp {level}</span>
+              <span className="xp"><i style={{ width: `${progress * 100}%` }} /></span>
+            </div>
+            <button className="dex-btn" onClick={() => setShowDex(true)}>
+              Sổ Ma <b>{Object.keys(save.caught).length}</b>
+            </button>
+          </header>
+
+          <div className="emf" ref={emfRef} aria-label="Máy đo sóng ma">
+            {[0, 1, 2, 3, 4].map((i) => <span key={i} className="bar" />)}
+            <small>EMF</small>
+          </div>
+
+          <footer className="hud-bottom">
+            <div className={`status ${phase}`}>{status}</div>
+
+            <div className={`tal-slot ${canThrow ? '' : 'disabled'}`}>
+              <div
+                ref={talRef}
+                className="tal"
+                onPointerDown={onTalDown}
+                onPointerMove={onTalMove}
+                onPointerUp={onTalUp}
+                onPointerCancel={onTalUp}
+                style={{ visibility: phase === 'caught' ? 'hidden' : 'visible' }}
+              >
+                <div ref={talInnerRef} className={`tal-inner ${talisman}`}>
+                  <Talisman kind={talisman} />
+                </div>
+              </div>
+            </div>
+
+            <div className="picker">
+              {Object.entries(TALISMANS).map(([k, t]) => (
+                <button
+                  key={k}
+                  className={`pick ${talisman === k ? 'active' : ''} ${k}`}
+                  onClick={() => setTalisman(k)}
+                  disabled={save.talismans[k] <= 0}
+                >
+                  <span className="pick-icon"><Talisman kind={k} /></span>
+                  {t.label} <b>{save.talismans[k]}</b>
+                </button>
+              ))}
+            </div>
+
+            {empty ? (
+              <button className="btn-primary small" onClick={refill}>Thắp nhang nhận 10 bùa</button>
+            ) : (
+              <p className="hint">
+                {phase === 'hunt'
+                  ? 'Vuốt bùa lên phía ma, ném lúc vòng tròn nhỏ nhất'
+                  : dragHint ? 'Kéo màn hình để nhìn xung quanh' : 'Xoay người chậm để dò sóng'}
+              </p>
+            )}
+          </footer>
+
+          {toast && <div key={toast.id} className="toast">{toast.text}</div>}
+          {caught && <CaughtCard data={caught} onClose={closeCaught} />}
+          {showDex && <Dex save={save} onClose={() => setShowDex(false)} onReset={resetProgress} />}
+        </>
+      )}
+
+      <div className="rotate-hint">Hãy cầm điện thoại dọc để săn ma</div>
+    </div>
+  );
+}
