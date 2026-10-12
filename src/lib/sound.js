@@ -182,6 +182,14 @@ export const sfx = {
   },
   mirror: () => [1319, 1568, 1976, 2637, 3136].forEach((f, i) => tone(f, 0.9, { type: 'triangle', vol: 0.05, delay: i * 0.07 })),
   lamp: () => { noise(0.25, { vol: 0.18, freq: 3000, q: 1.5, to: 800 }); noise(1.2, { vol: 0.05, freq: 900, q: 0.7, type: 'lowpass', delay: 0.15 }); },
+  wail: () => {
+    noise(1.1, { vol: 0.22, freq: 2600, q: 3, to: 1500, attack: 0.05, pan: (Math.random() - 0.5) });
+    tone(1250, 1.0, { type: 'sawtooth', vol: 0.06, to: 900, attack: 0.05 });
+    tone(1330, 1.0, { type: 'sawtooth', vol: 0.05, to: 950, attack: 0.05 });
+  },
+  lunge: () => { noise(0.5, { vol: 0.3, freq: 300, q: 1.2, to: 2500 }); tone(90, 0.5, { type: 'sawtooth', vol: 0.1, to: 300 }); },
+  fog: () => noise(1.4, { vol: 0.06, freq: 500, q: 0.6, type: 'lowpass', attack: 0.5 }),
+  chat: () => tone(1200, 0.08, { type: 'triangle', vol: 0.04, attack: 0.003 }),
   coin: () => { tone(1568, 0.12, { type: 'triangle', vol: 0.08, attack: 0.003 }); tone(2349, 0.25, { type: 'triangle', vol: 0.07, delay: 0.07, attack: 0.003 }); },
   revive: () => [196, 262, 330].forEach((f, i) => tone(f, 0.5, { vol: 0.09, delay: i * 0.18 })),
   refill: () => [392, 523].forEach((f, i) => tone(f, 0.25, { vol: 0.08, delay: i * 0.12 })),

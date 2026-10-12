@@ -8,7 +8,7 @@ import { cameraDirection, wrap180, requestOrientationPermission } from './lib/or
 import { sfx, noise, unlockAudio, pauseAudio, closeAudio, isMuted, setMuted } from './lib/sound.js';
 import { music } from './lib/music.js';
 import {
-  loadSave, writeSave, levelFromXp, loadPlayer, savePlayer, getToken, setToken, MAX_HP, loadLite, saveLite,
+  loadSave, writeSave, levelFromXp, loadPlayer, savePlayer, getToken, setToken, MAX_HP, loadLite, saveLite, nameKey,
 } from './lib/storage.js';
 import { api } from './lib/api.js';
 import Ghost from './components/Ghost.jsx';
@@ -21,6 +21,10 @@ import NightCard from './components/NightCard.jsx';
 import SealFX from './components/SealFX.jsx';
 import Shop from './components/Shop.jsx';
 import RoomPanel from './components/RoomPanel.jsx';
+import RoomChat from './components/RoomChat.jsx';
+import SafetyCard from './components/SafetyCard.jsx';
+import CurseSheet from './components/CurseSheet.jsx';
+import { CURSES, CURSE_CD_MS, DARK_MS } from './curses.js';
 import { TWISTS } from './twists.js';
 import { NIGHT_STORY, LORE, LORE_NEED } from './story.js';
 
@@ -40,6 +44,15 @@ const STEALTH_SPEED = 20;   // xoay nhanh hơn (độ/giây) → Oan Hồn Tóc 
 const HUNT = ['hunt', 'throw', 'shake'];
 const ROOM_POLL_MS = 2000;   // phòng chơi: hỏi máy chủ mỗi 2 giây
 const STUN_MS = 5000;        // phòng chơi: cạn dương khí thì bất tỉnh 5 giây
+// Màn hướng dẫn: ma hiền, không giới hạn thời gian, ném trúng là bắt được
+const TUT_CFG = {
+  n: 1, quota: 2, catchSec: 999, rate: 1, speed: 0.55, tiers: ['common'], behaviors: false, multi: 1, decoys: false,
+};
+const TUT_TEXT = {
+  find: 'Có ma ở gần. Xoay người theo mũi tên đỏ. Máy đo EMF bên phải càng nhiều vạch đỏ, ma càng gần.',
+  throw: 'Thấy rồi! Đặt ngón tay lên lá bùa và vuốt mạnh lên phía con ma.',
+  ring: 'Tốt lắm! Mẹo: vòng tròn quanh ma co lại liên tục. Ném lúc vòng chuyển xanh lá để tỷ lệ bắt cao nhất.',
+};
 // Camera 720p/30fps là đủ đẹp, nhẹ hơn nhiều so với để máy tự chọn 1080p–4K
 const CAM = {
   video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
@@ -88,6 +101,16 @@ export default function App() {
   const [roomBusy, setRoomBusy] = useState(false);
   const [roomErr, setRoomErr] = useState('');
   const [racing, setRacingState] = useState(false);
+  const [chat, setChat] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [chatSheet, setChatSheet] = useState(false);
+  const [bubbles, setBubbles] = useState([]);
+  const [floaters, setFloaters] = useState([]);
+  const [safety, setSafety] = useState(null);         // 'solo' | 'room' khi đang hiện cảnh báo an toàn
+  const [tut, setTutState] = useState(null);          // find | throw | ring
+  const [curseSheet, setCurseSheet] = useState(false);
+  const [cursed, setCursed] = useState(null);         // lời nguyền đang dính
+  const [curseCdUntil, setCurseCdUntil] = useState(0);
   const [, force] = useReducer((x) => x + 1, 0);
 
   const appRef = useRef(null);
@@ -121,6 +144,9 @@ export default function App() {
   const raceCfgRef = useRef(RACE_CFG);
   const twistRef = useRef(null);
   const sectorYaw = useRef(0);
+  const chatSince = useRef(0);
+  const chatSheetRef = useRef(false);
+  const tutRef = useRef(null);
   const camWanted = useRef(false);
   const liteRef = useRef(lite);
   const emfBars = useRef(null);
@@ -148,7 +174,11 @@ export default function App() {
   const setLite = (v) => { liteRef.current = v; setLiteState(v); saveLite(v); };
   const setMode = (m) => { modeRef.current = m; setModeState(m); };
   const setRacing = (v) => { racingRef.current = v; setRacingState(v); };
-  const cfgNow = () => (modeRef.current === 'room' ? raceCfgRef.current : getNight(runRef.current.night));
+  const setTut = (t) => { tutRef.current = t; setTutState(t); };
+  const cfgNow = () => {
+    if (tutRef.current) return TUT_CFG;
+    return modeRef.current === 'room' ? raceCfgRef.current : getNight(runRef.current.night);
+  };
   const showToast = (text, ms = 1700) => {
     clearTimeout(toastTimer.current);
     setToast({ text, id: Date.now() });
@@ -281,6 +311,7 @@ export default function App() {
     const omen = getOmen(new Date());
     setRun({ night: n, caught: 0, bossPhase: 1, omen });
     if (!saveRef.current.prologueSeen) setNightCard({ type: 'prologue', night: getNight(n), omen });
+    else if (!saveRef.current.tutorialDone) startTutorial();
     else setNightCard({ type: 'intro', night: getNight(n), omen });
     setPhase('intro');
   };
@@ -318,10 +349,33 @@ export default function App() {
   const onNightCard = () => {
     if (nightCard?.type === 'prologue') {
       setSave((s) => ({ ...s, prologueSeen: true }));
-      setNightCard({ ...nightCard, type: 'intro' });
       sfx.knock();
+      if (!saveRef.current.tutorialDone) startTutorial();
+      else setNightCard({ ...nightCard, type: 'intro' });
+    } else if (nightCard?.type === 'tutdone') {
+      setNightCard(null);
+      openIntro();
     } else if (nightCard?.type === 'intro') beginNight();
     else openIntro(); // clear → đêm kế tiếp | failed → chơi lại đêm này
+  };
+
+  // ====== HƯỚNG DẪN TƯƠNG TÁC ======
+  const startTutorial = () => {
+    clearGhosts();
+    setNightCard(null);
+    setTut('find');
+    setRun({ night: 1, caught: 0, bossPhase: 1, omen: NO_OMEN });
+    setSave((s) => ({ ...s, hp: MAX_HP }));
+    spawnAt.current = null;
+    setPhase('scan');
+  };
+  const finishTutorial = (skipped) => {
+    setTut(null);
+    clearGhosts();
+    setSave((s) => ({ ...s, tutorialDone: true }));
+    saveRef.current = { ...saveRef.current, tutorialDone: true };
+    if (skipped) openIntro();
+    else { setNightCard({ type: 'tutdone', night: getNight(1) }); setPhase('intro'); sfx.revive(); }
   };
 
   const toggleMute = () => { const m = !muted; setMuted(m); setMutedState(m); };
@@ -450,6 +504,7 @@ export default function App() {
       let arrowG = null;
       let barG = null;
       let frenzyLeft = Infinity;
+      let wailingAny = false;
 
       for (const g of ghostsRef.current) {
         const ph = phaseRef.current;
@@ -471,6 +526,42 @@ export default function App() {
           g.pitch = g.basePitch + Math.sin(g.mt * 1.3) * m * pa;
           if (g.behavior === 'creep' && !onScreen && ph === 'hunt') g.near = Math.min(1, g.near + fdt * 0.12);
         }
+
+        // --- Chiêu: Bé Gái thét (wail), Quỷ Nanh vồ (lunge), Mặt Quỷ tan trong sương (fog) ---
+        if ((ph === 'hunt' || ph === 'throw') && !g.sucked && !bellOn) {
+          g.bt = (g.bt || 0) + fdt;
+          if (g.behavior === 'wail' || g.behavior === 'lunge') {
+            if (g.nextEv == null) g.nextEv = g.bt + rand(2.5, 4);
+            if (g.evStart == null && g.bt >= g.nextEv) {
+              g.evStart = g.bt;
+              g.evHit = false;
+              if (g.behavior === 'wail') { sfx.wail(); vibrate([40, 30, 40, 30, 40]); } else sfx.lunge();
+            }
+            const dur = g.behavior === 'wail' ? 1.3 : 1.4;
+            if (g.evStart != null) {
+              const p = (g.bt - g.evStart) / dur;
+              if (p >= 1) {
+                g.evStart = null; g.ev = 0;
+                g.nextEv = g.bt + rand(3.5, 5.5) / (g.frenzy ? 1.6 : 1);
+              } else {
+                g.ev = Math.sin(Math.PI * p);
+                if (g.behavior === 'lunge' && p >= 0.5 && !g.evHit) {
+                  g.evHit = true;
+                  if (ph === 'hunt') { g.timeLeft = Math.max(0.5, g.timeLeft - 1.5); L.lungeHit(g); }
+                }
+              }
+            }
+          }
+          if (g.behavior === 'fog') {
+            const c = g.bt % 4.2;
+            const fv = c < 2.4 ? 1 : c < 2.9 ? 1 - (c - 2.4) / 0.5 * 0.94 : c < 3.7 ? 0.06 : 0.06 + (c - 3.7) / 0.5 * 0.94;
+            if (c >= 3.7 && (g.lastFog ?? 0) < 3.7) sfx.fog();
+            g.lastFog = c;
+            g.vis = lampOn ? 1 : fv;
+          }
+        }
+        g.wailing = g.behavior === 'wail' && g.evStart != null;
+        if (g.wailing) wailingAny = true;
 
         // --- Đồng hồ ---
         if (HUNT.includes(ph) && !bellOn) {
@@ -499,6 +590,8 @@ export default function App() {
           g.pitch += (v.p - g.pitch - g.realPOff) * 0.15;
           sc = 1.4 + p * p * 7;
         }
+        if (g.behavior === 'wail') sc *= 1 + (g.ev || 0) * 0.12;
+        if (g.behavior === 'lunge') sc *= 1 + (g.ev || 0) * 0.9;
         g.scale = sc;
 
         // --- Bản giả đổi chỗ với con thật ---
@@ -515,7 +608,13 @@ export default function App() {
         const flick = now < g.flickerUntil;
 
         // --- Vẽ con thật ---
-        const [sx, sy, dx, dy] = toScreen(g.yaw + g.realOff, g.pitch + g.realPOff);
+        let yawNow = g.yaw + g.realOff;
+        let pitchNow = g.pitch + g.realPOff;
+        if (g.behavior === 'lunge' && g.ev) {
+          yawNow += wrap180(v.h - yawNow) * g.ev * 0.7;
+          pitchNow += (v.p - pitchNow) * g.ev * 0.7;
+        }
+        const [sx, sy, dx, dy] = toScreen(yawNow, pitchNow);
         g.sx = sx; g.sy = sy;
         place(els, sx, sy, sc);
         let op = 1;
@@ -524,6 +623,7 @@ export default function App() {
           g.vis += (target - g.vis) * Math.min(1, fdt * (target > g.vis ? 1.6 : 7));
           op = g.vis;
         }
+        if (g.behavior === 'fog' && phaseRef.current !== 'attack') op = g.vis;
         if (flick) op *= 0.12;
         if (els?.body) els.body.style.opacity = g.sucked ? '' : String(op);
 
@@ -554,6 +654,9 @@ export default function App() {
           arrowRef.current.style.opacity = '0';
         }
       }
+      if (tutRef.current === 'find' && ghostsRef.current.some((g) => Math.abs(g.sx - W / 2) < W * 0.32 && g.sy > 60 && g.sy < H - 240)) {
+        L.tutSeen();
+      }
       if (countRef.current && frenzyLeft < Infinity) countRef.current.textContent = Math.ceil(frenzyLeft);
       if (barG) {
         timerRef.current?.style.setProperty('--t', clamp(barG.timeLeft / barG.catchSec, 0, 1));
@@ -561,6 +664,7 @@ export default function App() {
       }
 
       const ph = phaseRef.current;
+      appRef.current?.classList.toggle('wailing', wailingAny);
       appRef.current?.classList.toggle('near', emf > 0.82 && (ph === 'hunt' || ph === 'attack'));
       if (emfRef.current) {
         if (!emfBars.current) emfBars.current = emfRef.current.querySelectorAll('.bar');
@@ -613,6 +717,7 @@ export default function App() {
     const tw = modeRef.current === 'room' ? twistRef.current : null;
     let def = isBoss ? BOSS : pickGhost(cfg, r.omen || NO_OMEN, rnd);
     if (tw?.prefer && rnd() < 0.7) def = GHOSTS.find((x) => x.behavior === tw.prefer) || def;
+    if (tutRef.current) def = GHOSTS.find((x) => x.id === 'bong-trang-hanh-lang');
     const bossPhase = r.bossPhase || 1;
     const behavior = isBoss ? BOSS.phases[bossPhase - 1] : (cfg.behaviors ? def.behavior : null);
     const catchSec = isBoss ? BOSS.times[bossPhase - 1] : cfg.catchSec;
@@ -621,6 +726,7 @@ export default function App() {
     let yaw0 = view.current.h + side * rr(35, 140);
     if (tw?.spawn === 'behind') yaw0 = view.current.h + 180 + rr(-30, 30);
     if (tw?.spawn === 'sector') yaw0 = sectorYaw.current + rr(-25, 25);
+    if (tutRef.current) yaw0 = view.current.h + side * rr(45, 75);
     const baseYaw = (yaw0 + 720) % 360;
     const basePitch = behavior === 'crawl' || tw?.spawn === 'low' ? rr(-30, -18) : rr(-4, 10);
     ghostsRef.current = [...ghostsRef.current, {
@@ -741,7 +847,12 @@ export default function App() {
     }, RUSH_MS);
   };
 
-  loopApi.current = { attack: startAttack, frenzy: enterFrenzy, spawnTick };
+  const lungeHit = () => {
+    vibrate([150, 50, 150]);
+    setHurt((n) => n + 1);
+    showToast('Nó vồ trúng bạn! Mất 1,5 giây', 1400);
+  };
+  loopApi.current = { attack: startAttack, frenzy: enterFrenzy, spawnTick, lungeHit, tutSeen: () => { setTut('throw'); vibrate(60); } };
 
   // ====== BÙA ======
   const resetTalisman = () => {
@@ -846,7 +957,7 @@ export default function App() {
           const ny = (landY2 - y) / (h * HIT_H);
           return nx * nx + ny * ny;
         };
-        if (!(g.behavior === 'stealth' && g.vis < 0.5)) {
+        if (!((g.behavior === 'stealth' || g.behavior === 'fog') && g.vis < 0.5)) {
           const dd = test(g.sx, g.sy);
           if (dd < 1 && (!hit || dd < hit.dd)) hit = { g, dd, decoy: null };
         }
@@ -861,6 +972,14 @@ export default function App() {
         sfx.miss();
         breakStreak();
         showToast('Trượt rồi!', 1000);
+        popTalisman();
+        setPhase('hunt');
+        return;
+      }
+      if (!hit.decoy && hit.g.wailing) {
+        sfx.miss();
+        breakStreak();
+        showToast('Tiếng thét hất văng lá bùa!', 1300);
         popTalisman();
         setPhase('hunt');
         return;
@@ -881,7 +1000,7 @@ export default function App() {
       const cfg = cfgNow();
       const zone = ZONE[ringZone(ringAt)];
       const p = clamp(g.def.catch * cfg.rate * TALISMANS[kind].mult * zone.mult, 0.02, 0.95);
-      const success = Math.random() < p;
+      const success = tutRef.current ? true : Math.random() < p;
       g.landX = landX;
       g.landY = landY2;
       g.sucked = true;
@@ -930,6 +1049,13 @@ export default function App() {
   };
 
   const onCaught = (def) => {
+    if (tutRef.current) {
+      popTalisman();
+      if (runRef.current.caught >= TUT_CFG.quota) { finishTutorial(false); return; }
+      setTut('ring');
+      setPhase('scan');
+      return;
+    }
     const cfg = cfgNow();
     const omen = runRef.current.omen || NO_OMEN;
     const sm = streakMult(streakRef.current);
@@ -967,18 +1093,92 @@ export default function App() {
 
   // ====== PHÒNG CHƠI CHUNG ======
   const roomCall = async (action, extra = {}) => {
-    const r = await api.room(action, { name: player?.name, token: player?.token, code: roomRef.current?.code, ...extra });
+    const r = await api.room(action, {
+      name: player?.name, token: player?.token, code: roomRef.current?.code, since: chatSince.current, ...extra,
+    });
     if (r.room) {
       offsetRef.current = r.room.now - Date.now();
       roomRef.current = r.room;
       setRoom(r.room);
+      mergeChat(r.room.chat || [], action === 'join' || action === 'create');
     }
     return r;
   };
 
+  // ====== CHAT ======
+  const mergeChat = (msgs, backlog = false) => {
+    const fresh = msgs.filter((m) => m.id > chatSince.current);
+    if (!fresh.length) return;
+    chatSince.current = Math.max(...fresh.map((m) => m.id));
+    const myKey = nameKey(player?.name);
+    const tagged = fresh.map((m) => ({ ...m, me: m.k === myKey }));
+    setChat((c) => [...c, ...tagged].slice(-80));
+    if (backlog) return;
+    tagged.forEach((m) => {
+      if (m.y === 'emote') {
+        const id = `${m.id}`;
+        setFloaters((f) => [...f, { id, e: m.t, n: m.me ? 'Bạn' : m.n, x: 15 + Math.random() * 70 }]);
+        setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2600);
+      }
+      if (m.y === 'fx' && m.to === myKey) applyCurse(m);
+      if (m.me) return;
+      if (!chatSheetRef.current) setUnread((u) => u + 1);
+      if (m.y !== 'emote') sfx.chat?.();
+      if (racingRef.current && !chatSheetRef.current) {
+        setBubbles((b) => [...b.slice(-2), m]);
+        setTimeout(() => setBubbles((b) => b.filter((x) => x.id !== m.id)), 5000);
+      }
+    });
+  };
+
+  // ====== LỜI NGUYỀN ======
+  const applyCurse = (m) => {
+    const c = CURSES[m.fx];
+    if (!c) return;
+    if (m.fx === 'gift') {
+      sfx.coin();
+      setSave((s) => ({ ...s, talismans: { ...s.talismans, gold: s.talismans.gold + 1 } }));
+      showToast(`${m.n} tặng bạn 1 Bùa Vàng`, 2000);
+      return;
+    }
+    if (!racingRef.current) return;
+    setCursed({ kind: m.fx, from: m.n, id: m.id });
+    later(() => setCursed((x) => (x?.id === m.id ? null : x)), m.fx === 'dark' ? DARK_MS : 1800);
+    if (m.fx === 'dark') { sfx.fog(); vibrate(200); }
+    if (m.fx === 'knock') {
+      sfx.knock(); later(() => sfx.knock(), 650); later(() => sfx.knock(), 1300);
+      sfx.whisper();
+      vibrate([80, 60, 80, 60, 80, 300, 80, 60, 80]);
+    }
+    showToast(`${m.n} nguyền bạn: ${c.name}!`, 1800);
+  };
+
+  const castCurse = async (target, kind) => {
+    const c = CURSES[kind];
+    if ((saveRef.current.coins || 0) < c.cost) { showToast('Không đủ vàng mã', 1400); return; }
+    try {
+      const r = await roomCall('curse', { target: target.key, kind });
+      if (r?.ok) {
+        setSave((s) => ({ ...s, coins: (s.coins || 0) - c.cost }));
+        setCurseCdUntil(Date.now() + CURSE_CD_MS);
+        setCurseSheet(false);
+        sfx.angry();
+        showToast(`Đã ${kind === 'gift' ? 'tặng bùa cho' : `ném ${c.name} vào`} ${target.name}`, 1600);
+      }
+    } catch (e) { showToast(e.message, 1800); }
+  };
+
+  const sendChat = async (text) => {
+    try { await roomCall('chat', { text }); } catch (e) { showToast(e.message, 1400); }
+  };
+
+  const openChatSheet = (v) => { chatSheetRef.current = v; setChatSheet(v); if (v) { setUnread(0); setBubbles([]); } };
+  const resetChat = () => { chatSince.current = 0; setChat([]); setUnread(0); setBubbles([]); setFloaters([]); openChatSheet(false); };
+
   const roomAct = async (action, extra) => {
     setRoomBusy(true);
     setRoomErr('');
+    if (action === 'create' || action === 'join') resetChat();
     try {
       const r = await roomCall(action, extra);
       if (action === 'create' || action === 'join') setRoomCode(r.room.code);
@@ -1010,6 +1210,7 @@ export default function App() {
     setRoom(null);
     setRoomCode(null);
     setRacing(false);
+    resetChat();
     clearGhosts();
     setPhase('room');
   };
@@ -1176,11 +1377,13 @@ export default function App() {
   if (phase === 'shake') status = 'Đang phong ấn…';
   if (phase === 'seal') status = 'Phong ấn thành công';
   if (phase === 'attack') status = 'Nó đang lao tới!';
+  if (tut && phase === 'hunt') status = 'Con ma đang đứng chờ, cứ bình tĩnh';
 
   const appClass = ['app', lite && 'lite', scare && 'shaking', frenzy && huntLike && 'frenzy',
     fx.bell && 'fx-bell', fx.mirror && 'fx-mirror', fx.lamp && 'fx-lamp',
     ...(run.omen?.tags || []).map((t) => `omen-${t.id}`),
-    mode === 'room' && racing && twistRef.current?.dark && 'twist-dark'].filter(Boolean).join(' ');
+    mode === 'room' && racing && twistRef.current?.dark && 'twist-dark',
+    cursed?.kind === 'knock' && 'cursed-knock'].filter(Boolean).join(' ');
   const boss = ghosts.find((g) => g.boss);
 
   const renderGhost = (g, key, decoy) => {
@@ -1223,9 +1426,17 @@ export default function App() {
           onToggleLite={() => setLite(!lite)}
           onLogin={login}
           onLogout={logout}
-          onStart={() => start('solo')}
-          onStartRoom={() => start('room')}
+          onStart={() => setSafety('solo')}
+          onStartRoom={() => setSafety('room')}
+          onReplayTutorial={() => { setSave((s) => ({ ...s, tutorialDone: false })); setSafety('solo'); }}
           starting={starting}
+        />
+      )}
+
+      {!started && safety && (
+        <SafetyCard
+          onOk={() => { const t = safety; setSafety(null); start(t); }}
+          onCancel={() => setSafety(null)}
         />
       )}
 
@@ -1270,7 +1481,7 @@ export default function App() {
           <header className="hud-top">
             <div className="hud-left">
               <div className="night-pill">
-                <span className="night-num">{mode === 'room' ? 'Đua' : `Đêm ${run.night}`}</span>
+                <span className="night-num">{tut ? 'Hướng dẫn' : mode === 'room' ? 'Đua' : `Đêm ${run.night}`}</span>
                 <span className="pips" aria-label={`Đã phong ấn ${run.caught}/${cfg.quota}`}>
                   {Array.from({ length: cfg.quota }, (_, i) => <i key={i} className={i < run.caught ? 'on' : ''} />)}
                 </span>
@@ -1292,9 +1503,18 @@ export default function App() {
                 <button className="hud-btn icon" onClick={toggleMute} aria-label={muted ? 'Bật âm thanh' : 'Tắt âm thanh'}>
                   {muted ? '🔇' : '🔊'}
                 </button>
-                <button className="hud-btn" onClick={() => setPanel('board')}>
-                  {rank ? `Hạng ${rank}` : 'Xếp hạng'}
-                </button>
+                {mode === 'room' && racing ? (
+                  <>
+                    <button className="hud-btn icon" onClick={() => setCurseSheet(true)} aria-label="Lời nguyền">💀</button>
+                    <button className="hud-btn chat-btn" onClick={() => openChatSheet(true)} aria-label="Trò chuyện">
+                      💬 {unread > 0 && <i className="badge">{unread}</i>}
+                    </button>
+                  </>
+                ) : (
+                  <button className="hud-btn" onClick={() => setPanel('board')}>
+                    {rank ? `Hạng ${rank}` : 'Xếp hạng'}
+                  </button>
+                )}
               </div>
               <button className="hud-btn" onClick={() => setPanel('dex')}>
                 Sổ Ma <b>{speciesCount(save)}/{GHOSTS.length}</b>
@@ -1324,7 +1544,7 @@ export default function App() {
           </div>
 
           <footer className="hud-bottom">
-            {phase === 'hunt' && ghosts.length > 0 && !frenzy ? (
+            {phase === 'hunt' && ghosts.length > 0 && !frenzy && !tut ? (
               <div className="timer" ref={timerRef}>
                 <span className="timer-label">Tấn công sau</span>
                 <span className="timer-bar"><i /></span>
@@ -1405,8 +1625,59 @@ export default function App() {
               onStart={() => roomAct('start')}
               onAnswer={answerPuzzle}
               onReset={() => roomAct('reset')}
+              chat={chat}
+              unread={unread}
+              onChat={sendChat}
+              onReadChat={() => setUnread(0)}
               onLeave={leaveRoom}
               onSolo={backToSolo}
+            />
+          )}
+
+          {mode === 'room' && racing && bubbles.length > 0 && (
+            <div className="chat-bubbles" onClick={() => openChatSheet(true)}>
+              {bubbles.map((m) => (
+                <div key={m.id} className={`bubble ${m.y}`}>
+                  {m.y === 'fx' ? `${m.n} ${CURSES[m.fx]?.icon} ${m.toName}` : m.y === 'sys' ? m.t : <><b>{m.n}:</b> {m.t}</>}
+                </div>
+              ))}
+            </div>
+          )}
+          {chatSheet && (
+            <div className="modal" onClick={() => openChatSheet(false)}>
+              <div className="sheet chat-sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="sheet-head">
+                  <h2>Trò chuyện</h2>
+                  <button className="icon-btn" onClick={() => openChatSheet(false)} aria-label="Đóng">✕</button>
+                </div>
+                <RoomChat messages={chat} onSend={sendChat} />
+              </div>
+            </div>
+          )}
+          {floaters.map((f) => (
+            <div key={f.id} className="floater" style={{ left: `${f.x}%` }} aria-hidden="true">
+              <span>{f.e}</span><small>{f.n}</small>
+            </div>
+          ))}
+
+          {tut && (
+            <div className="coach" role="status">
+              <p>{tut === 'find' && dragHint ? TUT_TEXT.find.replace('Xoay người', 'Kéo màn hình') : TUT_TEXT[tut]}</p>
+              <button className="link-btn" onClick={() => finishTutorial(true)}>Bỏ qua hướng dẫn</button>
+            </div>
+          )}
+          {tut && tut !== 'find' && phase === 'hunt' && <div className="finger-hint" aria-hidden="true">👆</div>}
+
+          {cursed?.kind === 'dark' && (
+            <div className="curse-dark" aria-hidden="true"><span>🌑 {cursed.from} phủ màn đêm lên bạn</span></div>
+          )}
+          {curseSheet && (
+            <CurseSheet
+              rivals={room ? room.players.filter((p) => !p.me).map((p) => ({ ...p, quota: room.quota })) : []}
+              coins={save.coins || 0}
+              cdLeft={Math.max(0, curseCdUntil - Date.now())}
+              onCurse={castCurse}
+              onClose={() => setCurseSheet(false)}
             />
           )}
 

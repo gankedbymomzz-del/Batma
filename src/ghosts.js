@@ -41,11 +41,32 @@ export const GHOSTS = [
     desc: 'Mái tóc ướt sũng che kín mặt. Nếu nó vén tóc lên, đừng nhìn vào mắt nó.',
   },
   {
+    id: 'be-gai-ao-trang', name: 'Bé Gái Áo Trắng', rarity: 'common',
+    img: '/ghosts/be-gai-ao-trang.webp', ratio: 1.55, glow: '#c8d4dc',
+    catch: 0.36, move: 0.9, size: 1.0, xp: 35,
+    behavior: 'wail', hint: 'Thỉnh thoảng thét lên. Bùa ném vào lúc nó thét sẽ bị hất văng, hãy chờ nó im rồi ném.',
+    desc: 'Đứng im giữa phòng, áo trắng lấm lem. Chỉ cần bạn bước lại gần, nó há miệng thét lên không thành tiếng.',
+  },
+  {
+    id: 'mat-quy-trong-suong', name: 'Mặt Quỷ Trong Sương', rarity: 'rare',
+    img: '/ghosts/mat-quy-trong-suong.webp', ratio: 1.52, glow: '#9aa3ad',
+    catch: 0.24, move: 1.0, size: 1.1, xp: 85,
+    behavior: 'fog', hint: 'Tan vào sương rồi hiện lại theo nhịp. Chỉ ném trúng lúc nó hiện rõ. Đèn dầu giữ nó không tan được.',
+    desc: 'Một gương mặt méo mó gào thét giữa làn sương. Sương tan thì mặt cũng tan, sương tụ lại thì nó đã ở gần hơn.',
+  },
+  {
     id: 'nu-quy-gam-tu', name: 'Nữ Quỷ Gầm Tủ', rarity: 'rare',
     img: '/ghosts/nu-quy-gam-tu.webp', ratio: 1.73, glow: '#3a3f4a',
     catch: 0.22, move: 1.3, size: 1.1, xp: 90,
     behavior: 'crawl', hint: 'Bò sát sàn nhà, lẩn dưới tầm mắt. Hạ máy xuống để tìm.',
     desc: 'Sống trong gầm tủ quần áo. Đêm nào cũng bò ra, cười khúc khích bên giường người đang ngủ.',
+  },
+  {
+    id: 'quy-nanh-mat-trang', name: 'Quỷ Nanh Mắt Trắng', rarity: 'legendary',
+    img: '/ghosts/quy-nanh-mat-trang.webp', ratio: 1.12, glow: '#e8ecf0',
+    catch: 0.12, move: 1.3, size: 1.2, xp: 230,
+    behavior: 'lunge', hint: 'Định kỳ lao vồ tới mặt bạn rồi lùi lại. Lúc lao tới nó to và dễ trúng, nhưng để nó vồ trúng là mất 1,5 giây.',
+    desc: 'Đôi mắt trắng dã không có con ngươi, hàm răng nhọn hoắt. Nó không đi, nó vồ.',
   },
   {
     id: 'ma-nu-cau-thang', name: 'Ma Nữ Cầu Thang', rarity: 'legendary',

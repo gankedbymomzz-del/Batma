@@ -22,6 +22,24 @@ export default function NightCard({ data, coins = 0, onAction, onShop }) {
     );
   }
 
+  if (type === 'tutdone') {
+    return (
+      <div className="modal center night-modal">
+        <div className="night-card">
+          <p className="night-kicker">Hướng dẫn hoàn tất</p>
+          <h2>Sẵn sàng</h2>
+          <ul className="night-rules">
+            <li>Mỗi con ma chỉ cho bạn <b>vài giây</b>. Hết giờ, nó lao tới tấn công</li>
+            <li>Bắt hụt, ma <b>nổi điên</b> và chỉ còn tối đa 5 giây</li>
+            <li><b>Pháp khí</b> bên trái giúp bạn lúc nguy, mua thêm ở tiệm trước mỗi đêm</li>
+            <li>Mất hết <b>3 dương khí</b> là phải chơi lại đêm đó</li>
+          </ul>
+          <button className="btn-primary" onClick={onAction} autoFocus>Vào đêm 1</button>
+        </div>
+      </div>
+    );
+  }
+
   if (type === 'intro') {
     const tale = NIGHT_STORY[night.n]?.intro || (endless ? ENDLESS_INTRO : null);
     const omen = data.omen;

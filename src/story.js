@@ -84,6 +84,18 @@ export const LORE = {
     who: 'Bà chủ nhà, người mẹ',
     text: 'Đã hứa quay lại tìm cậu út trốn trong tủ, nhưng không bao giờ về kịp. Giờ bà bò khắp gầm giường, gầm tủ, lục tìm đứa con mà bà không còn nhớ mặt.',
   },
+  'be-gai-ao-trang': {
+    who: 'Bé Na, con gái cô hầu Thị Lành',
+    text: 'Ông chủ không tính con bé vào sáu linh hồn, vì với ông, con của kẻ ăn người ở không đáng gọi là người nhà. Bé Na chết cùng đêm với mẹ, gào gọi mẹ đến khàn tiếng. Giờ nó chỉ còn biết thét.',
+  },
+  'mat-quy-trong-suong': {
+    who: 'Thầy địa lý họ Phan',
+    text: 'Kẻ đã vẽ trận đồ ngược để mở Quỷ Môn. Hắn bị chính trận pháp của mình giam lại, thân xác tan thành sương, chỉ còn gương mặt gào thét mỗi khi sương tụ lại.',
+  },
+  'quy-nanh-mat-trang': {
+    who: 'Chú rể của cô Hạnh',
+    text: 'Không có tên trong sổ tay của ông chủ, vì hắn chưa bao giờ coi chàng là người nhà. Chàng bị dùng làm vật tế phụ ngay đêm tân hôn. Cơn đói của Quỷ Môn biến chàng thành thứ chỉ biết vồ lấy người sống.',
+  },
   'ma-nu-cau-thang': {
     who: 'Bà Tư, mẹ của ông chủ nhà',
     text: 'Người đầu tiên phát hiện kế hoạch của con trai, bị chính nó đẩy ngã từ chiếu nghỉ cầu thang. Đôi mắt rực lửa ấy là mối hận của một người mẹ, chia làm ba để không ai đoán được bà sẽ đứng ở đâu.',

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TWISTS } from '../twists.js';
+import RoomChat from './RoomChat.jsx';
 
 const mmss = (ms) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -7,11 +8,22 @@ const mmss = (ms) => {
 };
 
 // Giao diện phòng chơi chung: sảnh → phòng chờ → mật thư → đếm ngược → kết quả
-export default function RoomPanel({ room, offset, busy, error, onCreate, onJoin, onStart, onAnswer, onReset, onLeave, onSolo }) {
+export default function RoomPanel({ room, offset, busy, error, chat = [], unread = 0, onChat, onReadChat, onCreate, onJoin, onStart, onAnswer, onReset, onLeave, onSolo }) {
   const [code, setCode] = useState('');
   const [answer, setAnswer] = useState('');
   const [wrong, setWrong] = useState(0);
   const [, tick] = useState(0);
+  const [chatOpen, setChatOpen] = useState(true);
+  const chatBox = (
+    <div className="chat-wrap">
+      <button className="chat-toggle" onClick={() => { setChatOpen(!chatOpen); onReadChat?.(); }}>
+        Trò chuyện {chat.length > 0 && `(${chat.filter((m) => m.y !== 'sys').length})`}
+        {!chatOpen && unread > 0 && <i className="badge">{unread}</i>}
+        <span>{chatOpen ? 'Thu gọn' : 'Mở'}</span>
+      </button>
+      {chatOpen && <RoomChat messages={chat} onSend={onChat} compact />}
+    </div>
+  );
 
   useEffect(() => { const t = setInterval(() => tick((x) => x + 1), 250); return () => clearInterval(t); }, []);
   useEffect(() => { setAnswer(''); }, [room?.status, room?.round]);
@@ -84,6 +96,7 @@ export default function RoomPanel({ room, offset, busy, error, onCreate, onJoin,
             <p className="room-wait">Chờ chủ phòng bắt đầu…</p>
           )}
           {error && <p className="err">{error}</p>}
+          {chatBox}
           <button className="link-btn" onClick={onLeave}>Rời phòng</button>
         </div>
       </div>
@@ -122,6 +135,7 @@ export default function RoomPanel({ room, offset, busy, error, onCreate, onJoin,
           {wrong > 0 && <p className="err">Chưa đúng. Cả phòng cùng nghĩ tiếp nhé.</p>}
           {error && <p className="err">{error}</p>}
           <p className="puzzle-tip">Ai trong phòng đoán đúng trước, cả phòng cùng sang màn đua.</p>
+          {chatBox}
           {players}
         </div>
       </div>
@@ -176,6 +190,7 @@ export default function RoomPanel({ room, offset, busy, error, onCreate, onJoin,
           ) : (
             <p className="room-wait">Chờ chủ phòng mở ván mới…</p>
           )}
+          {chatBox}
           <button className="link-btn" onClick={onLeave}>Rời phòng</button>
         </div>
       </div>

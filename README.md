@@ -62,6 +62,9 @@ Trong game không hiện tên. Chiêu được ghi vào Sổ Ma sau lần bắt 
 | Oan Hồn Tóc Rũ | Oán linh | Tàng hình khi bạn xoay máy | Giữ máy thật yên |
 | Nữ Quỷ Gầm Tủ | Lệ quỷ | Bò sát sàn nhà | Hạ máy xuống |
 | Ma Nữ Cầu Thang | Đại hung | Phân thân 3, đổi chỗ liên tục | Con thật có mắt sáng rực, bản giả mờ hơn |
+| Bé Gái Áo Trắng | Oán linh | Thỉnh thoảng thét, bùa ném lúc đó bị hất văng | Chờ nó im rồi ném |
+| Mặt Quỷ Trong Sương | Lệ quỷ | Tan vào sương rồi hiện lại theo nhịp | Ném lúc hiện rõ, hoặc thắp Đèn dầu |
+| Quỷ Nanh Mắt Trắng | Đại hung | Định kỳ vồ tới mặt, vồ trúng mất 1,5 giây | Ném đúng lúc nó lao tới (to, dễ trúng) |
 
 ## 4b. Vàng mã & pháp khí
 
@@ -156,6 +159,31 @@ Tạo phòng → mã 4 số → mọi người nhập mã → phòng chờ → c
 
 Nội dung truyện khớp với 12 mật thư của chế độ phòng: hai chế độ cùng kể một câu chuyện.
 
+## 4g. Trò chuyện trong phòng
+
+- **Phòng chờ, lúc giải mật thư, màn kết quả:** khung chat ngay trong bảng phòng (thu gọn được).
+- **Lúc đang đua:** nút 💬 trên góc phải (có số tin chưa đọc), tin mới hiện thành bong bóng 5 giây trên màn hình.
+- **Biểu cảm** 😱 😂 🔥 👏 👻 🙏 bay lên màn hình của cả phòng.
+- **Câu nói nhanh:** "Cứu tôi!", "Ma sau lưng!", "Hạ máy xuống!"… bấm một chạm khi đang đua.
+- **Tin hệ thống** tự báo diễn biến: ai vào/rời phòng, ai giải được mật thư, ai **chỉ còn 1 con**, ai thắng.
+- Tối đa 120 ký tự, chống spam (0,8 giây/tin), tự che từ thô tục cơ bản. Giữ 60 tin gần nhất, xoá cùng phòng.
+
+## 4h. An toàn, hướng dẫn, lời nguyền
+
+**Cảnh báo an toàn** hiện mỗi lần bắt đầu chơi: đứng yên chỉ xoay người, khoảng trống 2 mét, không chơi gần cầu thang, kệ hàng, lối xe nâng.
+
+**Hướng dẫn tương tác** cho người mới (sau lời mở đầu): một con ma hiền, không giới hạn thời gian. Lời nhắc từng bước (tìm ma → vuốt bùa → canh vòng xanh) và ngón tay chỉ cách vuốt. Bỏ qua được, xem lại được ở màn hình đầu. Người chơi cũ tự động bỏ qua.
+
+**Lời nguyền** (phòng chơi, nút 💀 khi đang đua):
+
+| Lời nguyền | Giá | Tác dụng |
+|---|---|---|
+| 🌑 Màn đêm | 20 | Màn hình đối thủ tối sầm 3 giây |
+| 🚪 Gõ cửa | 10 | Tiếng gõ dồn dập, rung, rung màn hình bên đối thủ |
+| 🎁 Tặng bùa | 15 | Tặng 1 Bùa Vàng cho người khác |
+
+Mỗi người hồi chiêu 12 giây, người vừa bị nguyền được miễn nhiễm 8 giây. Cả phòng thấy ai nguyền ai trong khung chat.
+
 ## 5. Tuỳ chỉnh nhanh
 
 | Muốn sửa | File |
@@ -170,6 +198,10 @@ Nội dung truyện khớp với 12 mật thư của chế độ phòng: hai ch�
 | Manh mối màn đua | `src/twists.js` |
 | Cốt truyện, nhật ký, lai lịch ma | `src/story.js` |
 | Luật phòng (số người, thời gian, số ma) | Đầu file `api/room.js` |
+| Chat: biểu cảm, từ bị chặn, số tin lưu | Phần CHAT trong `api/room.js` |
+| Câu nói nhanh | `src/components/RoomChat.jsx` |
+| Giá lời nguyền / hồi chiêu, miễn nhiễm | `src/curses.js` / phần LỜI NGUYỀN trong `api/room.js` |
+| Nội dung cảnh báo an toàn | `src/components/SafetyCard.jsx` |
 | Thời gian ma xuất hiện, vùng trúng, vòng tròn | Đầu file `src/App.jsx` |
 | Nhạc nền, âm thanh | `src/lib/music.js`, `src/lib/sound.js` |
 | Tiếng hét khi bị tấn công | Thay file `public/sfx/scream.mp3` (giữ nguyên tên) |
