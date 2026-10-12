@@ -18,21 +18,25 @@ import SealFX from './components/SealFX.jsx';
 
 // ====== THÔNG SỐ GAME ======
 const FOV = 60;             // góc nhìn ngang (độ)
-const RING_PERIOD = 1800;   // chu kỳ vòng tròn co lại (ms)
+const RING_PERIOD = 1300;   // chu kỳ vòng tròn co lại (ms) — nhanh hơn, khó canh hơn
 const GHOST_PX = 120;       // bề rộng ma chuẩn (px)
 const HORIZON = 0.42;       // vị trí đường chân trời
-const FRENZY_SEC = 5;       // bắt hụt → chỉ còn 5 giây
+const CATCH_SEC = 10;       // thời gian bắt mỗi con ma, hết giờ là bị tấn công
+const FRENZY_SEC = 5;       // 5 giây cuối / bắt hụt: ma nổi điên
+const SPAWN_MS = 3000;      // ma xuất hiện sau ~3 giây
+const HIT_W = 0.42;         // vùng trúng (tỷ lệ bề rộng ma) — nhỏ hơn, khó trúng hơn
+const HIT_H = 0.38;
 const RUSH_MS = 900;        // thời gian ma lao tới
 const SCARE_MS = 2100;      // thời gian hù doạ (khớp tiếng hét)
 const SEAL_MS = 1700;       // thời gian hiệu ứng phong ấn
 const DEATH_XP = 100;       // XP bị trừ khi cạn dương khí
 
 const ZONE = {
-  great: { mult: 1.8, label: 'Tuyệt vời!' },
-  good: { mult: 1.35, label: 'Tốt lắm!' },
+  great: { mult: 1.6, label: 'Tuyệt vời!' },
+  good: { mult: 1.25, label: 'Tốt lắm!' },
   ok: { mult: 1, label: 'Trúng rồi!' },
 };
-const ringZone = (s) => (s < 0.45 ? 'great' : s < 0.7 ? 'good' : 'ok');
+const ringZone = (s) => (s < 0.4 ? 'great' : s < 0.6 ? 'good' : 'ok');
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -261,26 +265,27 @@ export default function App() {
       let arrowOn = false;
 
       if (g) {
-        const dt = g.lastT ? Math.min(0.1, (now - g.lastT) / 1000) : 0;
+        const dt = g.lastT ? Math.min(0.5, (now - g.lastT) / 1000) : 0; // bám thời gian thật kể cả khi máy tụt khung hình
         g.lastT = now;
-        const m = g.def.move * (g.frenzy ? 1.9 : 1);
+        const m = g.def.move * (g.frenzy ? 2.1 : 1.3);
 
         if (ph === 'hunt' || ph === 'throw') {
           const t = (now - g.born) / 1000;
-          if (ph === 'hunt' && Math.random() < (g.frenzy ? 0.01 : 0.004) * m) g.baseYaw += rand(-7, 7);
+          if (ph === 'hunt' && Math.random() < (g.frenzy ? 0.012 : 0.006) * m) g.baseYaw += rand(-8, 8);
           g.yaw = g.baseYaw + Math.sin(t * 0.7) * m * 8 + Math.sin(t * 1.9) * m * 3;
           g.pitch = g.basePitch + Math.sin(t * 1.3) * m * 4;
         }
 
-        if (ph === 'hunt') {
-          g.timeLeft -= dt;
+        if (ph === 'hunt' || ph === 'throw' || ph === 'shake') {
+          g.timeLeft = Math.max(0, g.timeLeft - dt);
           const sec = Math.ceil(g.timeLeft);
           if (!g.frenzy && g.timeLeft <= FRENZY_SEC) frenzyRef.current?.('time');
-          if (timerRef.current) timerRef.current.style.setProperty('--t', clamp(g.timeLeft / g.def.patience, 0, 1));
+          if (timerRef.current) timerRef.current.style.setProperty('--t', clamp(g.timeLeft / CATCH_SEC, 0, 1));
           if (timerTextRef.current) timerTextRef.current.textContent = `${Math.max(0, sec)}s`;
           if (countRef.current) countRef.current.textContent = Math.max(0, sec);
           if (g.frenzy && sec > 0 && sec !== g.beat) { g.beat = sec; sfx.heartbeat(0.45); vibrate(60); }
-          if (g.timeLeft <= 0 && !g.attacking) { g.attacking = true; attackRef.current?.(); }
+          // hết giờ: tấn công ngay (nếu đang phong ấn thì chờ kết quả, hụt là bị tấn công liền)
+          if (ph === 'hunt' && g.timeLeft <= 0 && !g.attacking) { g.attacking = true; attackRef.current?.(); }
         }
 
         // Nổi điên: ma tiến dần lại gần
@@ -339,7 +344,7 @@ export default function App() {
     ghostRef.current = {
       def, baseYaw, basePitch: rand(-4, 10), yaw: baseYaw, pitch: 0,
       born: performance.now(), sx: -999, sy: -999, ring: 1, scale: 1,
-      timeLeft: def.patience, beat: null, attacking: false, frenzy: false, lastT: 0,
+      timeLeft: CATCH_SEC, beat: null, attacking: false, frenzy: false, lastT: 0,
     };
     setSucked(false);
     setFrenzy(false);
@@ -357,7 +362,7 @@ export default function App() {
 
   useEffect(() => {
     if (!started || phase !== 'scan') return undefined;
-    const t = setTimeout(spawn, rand(2500, 5000));
+    const t = setTimeout(spawn, rand(SPAWN_MS - 300, SPAWN_MS + 300));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, phase]);
@@ -367,11 +372,11 @@ export default function App() {
     const g = ghostRef.current;
     if (!g) return;
     if (g.frenzy) {
-      g.timeLeft = Math.max(1, g.timeLeft - 1); // đã điên rồi, hụt tiếp → bớt 1 giây
+      g.timeLeft = Math.max(0.5, g.timeLeft - 1); // đã điên rồi, hụt tiếp → bớt 1 giây
       return;
     }
     g.frenzy = true;
-    g.timeLeft = reason === 'fail' ? FRENZY_SEC : Math.min(g.timeLeft, FRENZY_SEC);
+    g.timeLeft = Math.min(g.timeLeft, FRENZY_SEC); // không bao giờ cộng thêm giờ
     g.beat = null;
     setFrenzy(true);
     sfx.angry();
@@ -511,8 +516,8 @@ export default function App() {
       if (!gg) return;
       const w = GHOST_PX * gg.def.size * gg.scale;
       const h = w * gg.def.ratio;
-      const nx = (landX - gg.sx) / (w * 0.55);
-      const ny = (landY - gg.sy) / (h * 0.5);
+      const nx = (landX - gg.sx) / (w * HIT_W);
+      const ny = (landY - gg.sy) / (h * HIT_H);
       if (nx * nx + ny * ny >= 1) {
         sfx.miss();
         showToast('Trượt rồi!', 1000);
@@ -738,7 +743,7 @@ export default function App() {
               <div className="timer" ref={timerRef}>
                 <span className="timer-label">Tấn công sau</span>
                 <span className="timer-bar"><i /></span>
-                <b ref={timerTextRef}>{ghost.patience}s</b>
+                <b ref={timerTextRef}>{CATCH_SEC}s</b>
               </div>
             ) : (
               <div className={`status ${phase}`}>{frenzy && huntLike ? 'Nó đang tiến lại gần…' : status}</div>

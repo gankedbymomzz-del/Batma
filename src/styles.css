@@ -68,11 +68,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
   background: radial-gradient(ellipse at 50% 42%, transparent 40%, rgba(8, 0, 4, .85) 100%);
   transition: box-shadow .5s;
 }
-.vignette.danger { animation: danger 1.2s ease-in-out infinite; }
-@keyframes danger {
-  0%, 100% { box-shadow: inset 0 0 60px rgba(179, 18, 27, .35); }
-  50% { box-shadow: inset 0 0 140px rgba(179, 18, 27, .75); }
+/* viền đỏ: box-shadow cố định, chỉ nhấp nháy opacity cho nhẹ máy */
+.vignette::after {
+  content: ''; position: absolute; inset: 0; opacity: 0;
+  box-shadow: inset 0 0 150px rgba(200, 0, 10, .9);
 }
+.vignette.danger::after { animation: danger 1.2s ease-in-out infinite; }
+@keyframes danger { 0%, 100% { opacity: .3; } 50% { opacity: .8; } }
 .hurt-flash {
   position: absolute; inset: 0; z-index: 12; pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(179, 18, 27, .2), rgba(120, 0, 8, .85));
@@ -443,11 +445,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
 }
 
 /* Nổi điên: 5 giây cuối */
-.app.frenzy .vignette { animation: frenzyPulse .45s ease-in-out infinite; }
-@keyframes frenzyPulse {
-  0%, 100% { box-shadow: inset 0 0 80px rgba(179, 18, 27, .5); }
-  50% { box-shadow: inset 0 0 200px rgba(200, 0, 10, .95); }
-}
+.app.frenzy .vignette::after { animation: frenzyPulse .45s ease-in-out infinite; }
+@keyframes frenzyPulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 .app.frenzy .stage { animation: jitter .14s steps(2) infinite; }
 @keyframes jitter { 0% { transform: translate(0, 0); } 50% { transform: translate(2px, -1px); } 100% { transform: translate(-1px, 2px); } }
 .ghost-wrap.mad .ghost-img {
@@ -554,6 +553,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--paper); out
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app.near .cam, .app.frenzy .stage, .ghost-wrap.mad .ghost-haunt, .scare-glitch, .subliminal { animation: none !important; }
+  .app.near .cam, .app.frenzy .stage, .vignette::after, .ghost-wrap.mad .ghost-haunt, .scare-glitch, .subliminal { animation: none !important; }
   .subliminal { display: none; }
 }

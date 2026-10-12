@@ -33,9 +33,9 @@ Chưa bật bước này game vẫn chơi được, người chơi ở chế đ�
 |---|---|
 | Ghi danh bằng tên | Tên là duy nhất, hiện trên bảng xếp hạng |
 | Xoay điện thoại / kéo chuột | Nhìn quanh, theo mũi tên đỏ và máy đo EMF |
-| Vuốt bùa lên phía ma | Ném bùa, ném lúc vòng tròn **xanh lá** để tỷ lệ ×1.8 |
+| Vuốt bùa lên phía ma | Ném bùa, ném lúc vòng tròn **xanh lá** để tỷ lệ ×1.6 |
 | Phong ấn thành công | Tiếng chiêng, vòng ấn chú, dấu triện 封印, +XP, hồi 1 Dương khí |
-| **Bắt hụt** | Bùa cháy rụi, ma **nổi điên**: nhạc dồn dập, chỉ còn **5 giây** |
+| **Bắt hụt** | Bùa cháy rụi, ma **nổi điên**: nhạc dồn dập, còn tối đa **5 giây** |
 | Hết giờ | Ma lao thẳng vào mặt kèm **tiếng hét kinh dị**, mất 1 Dương khí |
 | Cạn 3 Dương khí | Bị trừ 100 XP, thắp nhang để hồi dương |
 
@@ -46,12 +46,14 @@ Thỉnh thoảng có tiếng thì thầm, tiếng gõ cửa, hộp nhạc lạc 
 
 Trong game **không hiện tên**, người chơi chỉ thấy hình. Tên dưới đây để bạn quản lý trong `src/ghosts.js`.
 
-| Ma | Độ hiếm | Thời gian trước khi tấn công |
+| Ma | Độ hiếm | Tỷ lệ bắt gốc |
 |---|---|---|
-| Bóng Trắng Cuối Hành Lang | Oán linh | 20s |
-| Oan Hồn Tóc Rũ | Oán linh | 18s |
-| Nữ Quỷ Gầm Tủ | Lệ quỷ | 15s |
-| Ma Nữ Cầu Thang | Đại hung | 12s |
+| Bóng Trắng Cuối Hành Lang | Oán linh | 38% |
+| Oan Hồn Tóc Rũ | Oán linh | 34% |
+| Nữ Quỷ Gầm Tủ | Lệ quỷ | 22% |
+| Ma Nữ Cầu Thang | Đại hung | 10% |
+
+Mọi con ma: xuất hiện sau ~3 giây, **10 giây** để bắt, 5 giây cuối nổi điên, hết giờ bị tấn công ngay.
 
 ## 5. Tuỳ chỉnh nhanh
 
@@ -59,7 +61,7 @@ Trong game **không hiện tên**, người chơi chỉ thấy hình. Tên dư�
 |---|---|
 | Tên, mô tả, tỷ lệ bắt, thời gian tấn công của ma | `src/ghosts.js` |
 | Thêm ma mới | Ảnh PNG/WebP nền trong suốt vào `public/ghosts/`, khai báo trong `src/ghosts.js` |
-| Số giây khi nổi điên, XP bị trừ, thời gian lao tới | Đầu file `src/App.jsx` |
+| Thời gian bắt, thời gian ma xuất hiện, vùng trúng, XP bị trừ | Đầu file `src/App.jsx` |
 | Nhạc nền, âm thanh | `src/lib/music.js`, `src/lib/sound.js` |
 | Tiếng hét khi bị tấn công | Thay file `public/sfx/scream.mp3` (giữ nguyên tên) |
 | Số bùa, số Dương khí | `src/lib/storage.js` |
