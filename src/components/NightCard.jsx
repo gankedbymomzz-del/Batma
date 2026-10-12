@@ -1,18 +1,36 @@
 import { STORY_NIGHTS } from '../nights.js';
 import { BOSS } from '../ghosts.js';
+import { PROLOGUE, NIGHT_STORY, ENDLESS_INTRO } from '../story.js';
 
 // Màn mở đầu đêm / qua đêm / thất bại
 export default function NightCard({ data, coins = 0, onAction, onShop }) {
   const { type, night } = data;
   const endless = night.n > STORY_NIGHTS;
 
+  if (type === 'prologue') {
+    return (
+      <div className="modal center night-modal">
+        <div className="night-card story-card">
+          <p className="night-kicker">Lời mở đầu</p>
+          <h2 className="story-title">{PROLOGUE.title}</h2>
+          <div className="letter">
+            {PROLOGUE.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+          </div>
+          <button className="btn-primary" onClick={onAction} autoFocus>{PROLOGUE.button}</button>
+        </div>
+      </div>
+    );
+  }
+
   if (type === 'intro') {
+    const tale = NIGHT_STORY[night.n]?.intro || (endless ? ENDLESS_INTRO : null);
     const omen = data.omen;
     return (
       <div className={`modal center night-modal ${night.boss ? 'boss-night' : ''}`}>
         <div className="night-card">
           <p className="night-kicker">{night.boss ? 'Đêm trùm' : endless ? 'Đêm vô tận' : `${night.n} / ${STORY_NIGHTS}`}</p>
           <h2>Đêm {night.n}</h2>
+          {tale && <p className="tale">{tale}</p>}
           <p className="desc">{night.intro}</p>
           {omen?.tags.map((t) => (
             <p key={t.id} className={`omen-banner ${t.id}`}><b>{t.label}.</b> {t.desc}</p>
@@ -54,6 +72,13 @@ export default function NightCard({ data, coins = 0, onAction, onShop }) {
           <p className="desc">
             {night.boss ? 'Ngôi nhà yên tĩnh trở lại. Nhưng những đêm vô tận vẫn đang chờ.' : `Bạn sống sót qua đêm ${night.n}.`}
           </p>
+          {data.page && (
+            <div className="journal-page">
+              <p className="jp-kicker">Nhặt được: {data.page.title}</p>
+              <p className="jp-text">{data.page.text}</p>
+              <p className="jp-author">— {data.page.author}</p>
+            </div>
+          )}
           {data.newTitle && <p className="title-up">Thăng danh hiệu: <b>{data.newTitle}</b></p>}
           <div className="rewards">
             <span>+{data.bonusXp} XP</span>

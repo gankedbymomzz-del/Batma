@@ -46,16 +46,34 @@ export function getNight(n) {
   };
 }
 
-export function pickGhost(cfg, omen = { legendaryMult: 1 }) {
+export function pickGhost(cfg, omen = { legendaryMult: 1 }, rng = Math.random) {
   const extra = Math.max(0, cfg.n - BOSS_NIGHT) * 2;
   const weights = { common: 60, rare: 32, legendary: (10 + extra) * omen.legendaryMult };
   const tiers = cfg.tiers;
   const total = tiers.reduce((a, t) => a + weights[t], 0);
-  let roll = Math.random() * total;
+  let roll = rng() * total;
   let tier = tiers[0];
   for (const t of tiers) { roll -= weights[t]; if (roll <= 0) { tier = t; break; } }
   const pool = GHOSTS.filter((g) => g.rarity === tier);
-  return pool[Math.floor(Math.random() * pool.length)];
+  return pool[Math.floor(rng() * pool.length)];
+}
+
+// ====== MÀN ĐUA TRONG PHÒNG CHƠI CHUNG ======
+export const RACE_CFG = {
+  n: 3, race: true, quota: 5, catchSec: 9, rate: 0.85, speed: 1.1,
+  tiers: ['common', 'rare'], behaviors: true, multi: 1, decoys: false,
+};
+
+// Bộ sinh số ngẫu nhiên có hạt giống: mọi máy trong phòng gặp cùng một chuỗi ma
+export function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 // XP tăng theo đêm

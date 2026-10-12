@@ -17,5 +17,6 @@ async function call(path, opts = {}) {
 export const api = {
   register: (name, token) => call('/api/register', { method: 'POST', body: JSON.stringify({ name, token }) }),
   score: (payload) => call('/api/score', { method: 'POST', body: JSON.stringify(payload) }),
+  room: (action, payload = {}) => call('/api/room', { method: 'POST', body: JSON.stringify({ action, ...payload }) }),
   leaderboard: (name) => call(`/api/leaderboard${name ? `?name=${encodeURIComponent(name)}` : ''}`),
 };

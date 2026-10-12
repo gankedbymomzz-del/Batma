@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useReducer, useRef, useState } from 'react';
 import { TALISMANS, GHOSTS, BOSS } from './ghosts.js';
-import { getNight, pickGhost, xpFor } from './nights.js';
+import { getNight, pickGhost, xpFor, RACE_CFG, seededRng } from './nights.js';
 import { ITEMS, PACKS, coinsFor, nightCoins } from './items.js';
 import { titleFor } from './titles.js';
 import { getOmen, NO_OMEN } from './omen.js';
 import { cameraDirection, wrap180, requestOrientationPermission } from './lib/orientation.js';
-import { sfx, noise, unlockAudio, pauseAudio, isMuted, setMuted } from './lib/sound.js';
+import { sfx, noise, unlockAudio, pauseAudio, closeAudio, isMuted, setMuted } from './lib/sound.js';
 import { music } from './lib/music.js';
 import {
-  loadSave, writeSave, levelFromXp, loadPlayer, savePlayer, getToken, setToken, MAX_HP,
+  loadSave, writeSave, levelFromXp, loadPlayer, savePlayer, getToken, setToken, MAX_HP, loadLite, saveLite,
 } from './lib/storage.js';
 import { api } from './lib/api.js';
 import Ghost from './components/Ghost.jsx';
@@ -20,6 +20,9 @@ import CaughtCard from './components/CaughtCard.jsx';
 import NightCard from './components/NightCard.jsx';
 import SealFX from './components/SealFX.jsx';
 import Shop from './components/Shop.jsx';
+import RoomPanel from './components/RoomPanel.jsx';
+import { TWISTS } from './twists.js';
+import { NIGHT_STORY, LORE, LORE_NEED } from './story.js';
 
 // ====== THÔNG SỐ GAME ======
 const FOV = 60;             // góc nhìn ngang (độ)
@@ -35,6 +38,13 @@ const SCARE_MS = 2100;      // thời gian hù doạ (khớp tiếng hét)
 const SEAL_MS = 1700;       // thời gian hiệu ứng phong ấn
 const STEALTH_SPEED = 20;   // xoay nhanh hơn (độ/giây) → Oan Hồn Tóc Rũ tàng hình
 const HUNT = ['hunt', 'throw', 'shake'];
+const ROOM_POLL_MS = 2000;   // phòng chơi: hỏi máy chủ mỗi 2 giây
+const STUN_MS = 5000;        // phòng chơi: cạn dương khí thì bất tỉnh 5 giây
+// Camera 720p/30fps là đủ đẹp, nhẹ hơn nhiều so với để máy tự chọn 1080p–4K
+const CAM = {
+  video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+  audio: false,
+};
 
 const ZONE = {
   great: { mult: 1.6, label: 'Tuyệt vời!' },
@@ -71,6 +81,13 @@ export default function App() {
   const [hurt, setHurt] = useState(0);
   const [muted, setMutedState] = useState(isMuted);
   const [fx, setFx] = useState({ bell: false, mirror: false, lamp: false });
+  const [lite, setLiteState] = useState(loadLite);
+  const [mode, setModeState] = useState('solo');      // solo | room
+  const [room, setRoom] = useState(null);             // trạng thái phòng từ máy chủ
+  const [roomCode, setRoomCode] = useState(null);
+  const [roomBusy, setRoomBusy] = useState(false);
+  const [roomErr, setRoomErr] = useState('');
+  const [racing, setRacingState] = useState(false);
   const [, force] = useReducer((x) => x + 1, 0);
 
   const appRef = useRef(null);
@@ -94,6 +111,19 @@ export default function App() {
   const throwRef = useRef(null);
   const stageDrag = useRef(null);
   const streakRef = useRef(0);
+  const startedRef = useRef(false);
+  const modeRef = useRef('solo');
+  const racingRef = useRef(false);
+  const roomRef = useRef(null);
+  const offsetRef = useRef(0);       // lệch giờ máy ↔ máy chủ
+  const raceTimer = useRef(null);
+  const raceRng = useRef(null);
+  const raceCfgRef = useRef(RACE_CFG);
+  const twistRef = useRef(null);
+  const sectorYaw = useRef(0);
+  const camWanted = useRef(false);
+  const liteRef = useRef(lite);
+  const emfBars = useRef(null);
   const fxRef = useRef({ bell: 0, mirror: 0, lamp: 0 }); // thời điểm hết hiệu lực pháp khí
   const loopApi = useRef({});        // hàm mới nhất cho vòng lặp (tránh closure cũ)
   const timers = useRef([]);
@@ -110,7 +140,15 @@ export default function App() {
     return n;
   };
   const breakStreak = () => { if (streakRef.current) setStreak(0); };
-  const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
+  const later = (fn, ms) => {
+    const t = setTimeout(() => { timers.current = timers.current.filter((x) => x !== t); fn(); }, ms);
+    timers.current.push(t);
+    return t;
+  };
+  const setLite = (v) => { liteRef.current = v; setLiteState(v); saveLite(v); };
+  const setMode = (m) => { modeRef.current = m; setModeState(m); };
+  const setRacing = (v) => { racingRef.current = v; setRacingState(v); };
+  const cfgNow = () => (modeRef.current === 'room' ? raceCfgRef.current : getNight(runRef.current.night));
   const showToast = (text, ms = 1700) => {
     clearTimeout(toastTimer.current);
     setToast({ text, id: Date.now() });
@@ -118,16 +156,43 @@ export default function App() {
   };
   const speciesCount = (s) => GHOSTS.filter((g) => s.caught[g.id]).length;
   const setEl = (key, part, el) => {
+    if (!el && !elMap.current[key]) return;
     if (!elMap.current[key]) elMap.current[key] = {};
     elMap.current[key][part] = el;
   };
   const refreshFrenzy = () => setFrenzy(ghostsRef.current.some((g) => g.frenzy));
+  const forgetEls = (g) => {
+    delete elMap.current[g.id];
+    g.decoys.forEach((_, i) => delete elMap.current[`${g.id}-d${i}`]);
+  };
   const removeGhost = (g) => {
+    forgetEls(g);
     ghostsRef.current = ghostsRef.current.filter((x) => x !== g);
     force();
     refreshFrenzy();
   };
-  const clearGhosts = () => { ghostsRef.current = []; spawnAt.current = null; force(); setFrenzy(false); };
+  const clearGhosts = () => { ghostsRef.current.forEach(forgetEls); ghostsRef.current = []; spawnAt.current = null; force(); setFrenzy(false); };
+
+  // ====== CAMERA ======
+  const openCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(CAM);
+      streamRef.current = stream;
+      const v = videoRef.current;
+      v.srcObject = stream;
+      await v.play().catch(() => {});
+      setCamOk(true);
+      return true;
+    } catch {
+      setCamOk(false);
+      return false;
+    }
+  };
+  const closeCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
 
   useEffect(() => {
     saveRef.current = save;
@@ -141,9 +206,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onVis = () => pauseAudio(document.hidden);
+    const onVis = () => {
+      const hidden = document.hidden;
+      pauseAudio(hidden);
+      if (!startedRef.current) return;
+      if (hidden) closeCamera();
+      else if (camWanted.current && !streamRef.current) openCamera();
+    };
+    const onLeave = () => { closeCamera(); music.stop(); closeAudio(); };
     document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', onLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ====== GHI DANH ======
@@ -184,28 +261,17 @@ export default function App() {
   }, [save.xp, save.total, save.nightsCleared, player]);
 
   // ====== BẮT ĐẦU ======
-  const start = async () => {
+  const start = async (target = 'solo') => {
     setStarting(true);
     unlockAudio();
     await requestOrientationPermission();
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      const v = videoRef.current;
-      v.srcObject = stream;
-      await v.play().catch(() => {});
-      setCamOk(true);
-    } catch {
-      setCamOk(false);
-      showToast('Không mở được camera, chuyển sang chế độ đêm', 2600);
-    }
+    camWanted.current = await openCamera();
+    if (!camWanted.current) showToast('Không mở được camera, chuyển sang chế độ đêm', 2600);
     music.start();
     setStarting(false);
+    startedRef.current = true;
     setStarted(true);
-    openIntro();
+    if (target === 'room') { setMode('room'); setPhase('room'); } else openIntro();
   };
 
   // ====== CHU KỲ ĐÊM ======
@@ -214,7 +280,8 @@ export default function App() {
     clearGhosts();
     const omen = getOmen(new Date());
     setRun({ night: n, caught: 0, bossPhase: 1, omen });
-    setNightCard({ type: 'intro', night: getNight(n), omen });
+    if (!saveRef.current.prologueSeen) setNightCard({ type: 'prologue', night: getNight(n), omen });
+    else setNightCard({ type: 'intro', night: getNight(n), omen });
     setPhase('intro');
   };
 
@@ -237,18 +304,23 @@ export default function App() {
     setSave((s) => ({
       ...s,
       bossBeaten: s.bossBeaten || !!cfg.boss,
+      journal: NIGHT_STORY[night] && !(s.journal || []).includes(night) ? [...(s.journal || []), night] : (s.journal || []),
       nightsCleared: Math.max(s.nightsCleared || 0, night),
       xp: s.xp + bonusXp,
       coins: (s.coins || 0) + bonusCoins,
       talismans: { paper: s.talismans.paper + 5, gold: s.talismans.gold + 2 },
     }));
-    setNightCard({ type: 'clear', night: cfg, bonusXp, bonusCoins, newTitle });
+    setNightCard({ type: 'clear', night: cfg, bonusXp, bonusCoins, newTitle, page: NIGHT_STORY[night]?.journal || null });
     setPhase('clear');
     sfx.revive();
   };
 
   const onNightCard = () => {
-    if (nightCard?.type === 'intro') beginNight();
+    if (nightCard?.type === 'prologue') {
+      setSave((s) => ({ ...s, prologueSeen: true }));
+      setNightCard({ ...nightCard, type: 'intro' });
+      sfx.knock();
+    } else if (nightCard?.type === 'intro') beginNight();
     else openIntro(); // clear → đêm kế tiếp | failed → chơi lại đêm này
   };
 
@@ -259,6 +331,7 @@ export default function App() {
     if (!started) return;
     let m = 'calm';
     if (HUNT.includes(phase)) m = frenzy ? 'frenzy' : 'tense';
+    if (phase === 'stunned') m = 'silent';
     if (phase === 'attack' || phase === 'seal') m = 'silent';
     const left = Math.min(...ghostsRef.current.map((g) => g.timeLeft), FRENZY_SEC);
     music.setMode(m, { riserSec: Math.max(1, left) });
@@ -325,10 +398,22 @@ export default function App() {
     if (!started) return undefined;
     let raf;
     let last = 0;
+    const perf = { frames: 0, sum: 0, low: 0 };
     const loop = (now) => {
       const v = view.current;
       const fdt = last ? Math.min(0.5, (now - last) / 1000) : 0.016;
       last = now;
+
+      // Máy yếu (dưới 40 khung hình/giây, 2 lần đo liên tiếp) → tự bật chế độ nhẹ
+      if (!liteRef.current && phaseRef.current !== 'attack') {
+        perf.frames += 1; perf.sum += fdt;
+        if (perf.sum >= 3) {
+          const fps = perf.frames / perf.sum;
+          perf.low = fps < 40 ? perf.low + 1 : 0;
+          perf.frames = 0; perf.sum = 0;
+          if (perf.low >= 2) { setLite(true); showToast('Đã bật chế độ nhẹ cho máy chạy mượt hơn', 2400); }
+        }
+      }
       const prevH = v.h;
       const prevP = v.p;
       const tH = v.sensorH + v.dragH;
@@ -342,13 +427,14 @@ export default function App() {
       const H = window.innerHeight;
       const ppd = W / FOV;
       const cy = H * HORIZON;
-      const cfg = getNight(runRef.current.night);
+      const cfg = cfgNow();
       const ring = ringNow(now);
       const zone = ringZone(ring);
       const L = loopApi.current;
       const bellOn = now < fxRef.current.bell;
       const omenSpeed = (runRef.current.omen || NO_OMEN).speedMult;
-      const streakSpeed = 1 + 0.04 * Math.min(streakRef.current, 10); // chuỗi càng dài, ma càng hung
+      const streakSpeed = (1 + 0.04 * Math.min(streakRef.current, 10)) // chuỗi càng dài, ma càng hung
+        * (modeRef.current === 'room' && twistRef.current?.stepUp ? 1 + twistRef.current.stepUp * runRef.current.caught : 1);
       const lampOn = now < fxRef.current.lamp;
       const toScreen = (yaw, pitch) => {
         const dx = wrap180(yaw - v.h) * ppd;
@@ -477,8 +563,9 @@ export default function App() {
       const ph = phaseRef.current;
       appRef.current?.classList.toggle('near', emf > 0.82 && (ph === 'hunt' || ph === 'attack'));
       if (emfRef.current) {
+        if (!emfBars.current) emfBars.current = emfRef.current.querySelectorAll('.bar');
         const lit = Math.ceil(clamp(emf, 0, 1) * 5);
-        emfRef.current.querySelectorAll('.bar').forEach((b, i) => b.classList.toggle('on', i < lit));
+        emfBars.current.forEach((b, i) => b.classList.toggle('on', i < lit));
       }
 
       L.spawnTick(now);
@@ -492,7 +579,7 @@ export default function App() {
   const spawnTick = (now) => {
     const ph = phaseRef.current;
     const r = runRef.current;
-    const cfg = getNight(r.night);
+    const cfg = cfgNow();
     const gs = ghostsRef.current;
     const need = r.caught + gs.length < cfg.quota;
     const can = need && ((ph === 'scan' && gs.length === 0) || (ph === 'hunt' && gs.length < cfg.multi));
@@ -509,7 +596,8 @@ export default function App() {
     if (behavior === 'decoy') {
       return [{ off: -16, poff: rand(-3, 3), alive: true }, { off: 16, poff: rand(-3, 3), alive: true }];
     }
-    if (cfg.decoys && def.rarity !== 'common' && !def.boss) {
+    const decoyAll = modeRef.current === 'room' && twistRef.current?.decoyAll;
+    if (cfg.decoys && (def.rarity !== 'common' || decoyAll) && !def.boss) {
       return [{ off: (Math.random() < 0.5 ? -1 : 1) * rand(13, 18), poff: rand(-3, 3), alive: true }];
     }
     return [];
@@ -517,16 +605,24 @@ export default function App() {
 
   const spawn = () => {
     const r = runRef.current;
-    const cfg = getNight(r.night);
+    const cfg = cfgNow();
     const isBoss = !!cfg.boss;
-    const def = isBoss ? BOSS : pickGhost(cfg, r.omen || NO_OMEN);
+    // Phòng chơi: dùng chung hạt giống để mọi người gặp cùng chuỗi ma
+    const rnd = modeRef.current === 'room' && raceRng.current ? raceRng.current : Math.random;
+    const rr = (a, b) => a + rnd() * (b - a);
+    const tw = modeRef.current === 'room' ? twistRef.current : null;
+    let def = isBoss ? BOSS : pickGhost(cfg, r.omen || NO_OMEN, rnd);
+    if (tw?.prefer && rnd() < 0.7) def = GHOSTS.find((x) => x.behavior === tw.prefer) || def;
     const bossPhase = r.bossPhase || 1;
     const behavior = isBoss ? BOSS.phases[bossPhase - 1] : (cfg.behaviors ? def.behavior : null);
     const catchSec = isBoss ? BOSS.times[bossPhase - 1] : cfg.catchSec;
     const first = ghostsRef.current.length === 0;
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const baseYaw = (view.current.h + side * rand(35, 140) + 360) % 360;
-    const basePitch = behavior === 'crawl' ? rand(-30, -20) : rand(-4, 10);
+    const side = rnd() < 0.5 ? -1 : 1;
+    let yaw0 = view.current.h + side * rr(35, 140);
+    if (tw?.spawn === 'behind') yaw0 = view.current.h + 180 + rr(-30, 30);
+    if (tw?.spawn === 'sector') yaw0 = sectorYaw.current + rr(-25, 25);
+    const baseYaw = (yaw0 + 720) % 360;
+    const basePitch = behavior === 'crawl' || tw?.spawn === 'low' ? rr(-30, -18) : rr(-4, 10);
     ghostsRef.current = [...ghostsRef.current, {
       id: ++idSeq.current, def, behavior, boss: isBoss, bossPhase,
       baseYaw, basePitch, yaw: baseYaw, pitch: basePitch, mt: 0,
@@ -623,7 +719,15 @@ export default function App() {
         breakStreak();
         const hp = saveRef.current.hp - 1;
         setHurt((n) => n + 1);
-        if (hp <= 0) {
+        if (hp <= 0 && modeRef.current === 'room') {
+          setSave((s) => ({ ...s, hp: 0 }));
+          setPhase('stunned');
+          later(() => {
+            if (!racingRef.current) return;
+            setSave((s) => ({ ...s, hp: MAX_HP }));
+            setPhase('scan');
+          }, STUN_MS);
+        } else if (hp <= 0) {
           setSave((s) => ({ ...s, hp: 0 }));
           const r = runRef.current;
           setNightCard({ type: 'failed', night: getNight(r.night), caught: r.caught });
@@ -774,7 +878,7 @@ export default function App() {
       }
 
       const g = hit.g;
-      const cfg = getNight(runRef.current.night);
+      const cfg = cfgNow();
       const zone = ZONE[ringZone(ringAt)];
       const p = clamp(g.def.catch * cfg.rate * TALISMANS[kind].mult * zone.mult, 0.02, 0.95);
       const success = Math.random() < p;
@@ -826,7 +930,7 @@ export default function App() {
   };
 
   const onCaught = (def) => {
-    const cfg = getNight(runRef.current.night);
+    const cfg = cfgNow();
     const omen = runRef.current.omen || NO_OMEN;
     const sm = streakMult(streakRef.current);
     const xp = def.boss ? Math.round(def.xp * omen.xpMult) : Math.round(xpFor(def, cfg) * sm * omen.xpMult);
@@ -837,6 +941,8 @@ export default function App() {
     const levelUp = after > before;
     const bonusPaper = Math.random() < 0.5 ? 2 : 1;
     const hpGain = prev.hp < MAX_HP;
+    const loreUnlocked = !def.boss && !!LORE[def.id] && (prev.caught[def.id] || 0) + 1 === LORE_NEED;
+    if (loreUnlocked && modeRef.current === 'room') later(() => showToast('Mở khoá lai lịch mới trong Sổ Ma', 2000), 1300);
     setSave((s) => ({
       ...s,
       xp: s.xp + xp,
@@ -846,10 +952,137 @@ export default function App() {
       caught: def.boss ? s.caught : { ...s.caught, [def.id]: (s.caught[def.id] || 0) + 1 },
       talismans: { paper: s.talismans.paper + bonusPaper, gold: s.talismans.gold + (levelUp ? 3 : 0) },
     }));
-    setCaught({ def, xp, coins, levelUp, level: after, isNew: !def.boss && !prev.caught[def.id], bonusPaper, hpGain, streak: def.boss ? 1 : sm });
     popTalisman();
+    if (modeRef.current === 'room') {
+      const c = runRef.current.caught;
+      sendProgress(c);
+      showToast(`Đã phong ấn ${c}/${RACE_CFG.quota}`, 1200);
+      if (c >= RACE_CFG.quota) { clearGhosts(); setPhase('roomwait'); }
+      else setPhase(ghostsRef.current.length ? 'hunt' : 'scan');
+      return;
+    }
+    setCaught({ def, xp, coins, levelUp, level: after, isNew: !def.boss && !prev.caught[def.id], bonusPaper, hpGain, loreUnlocked, streak: def.boss ? 1 : sm });
     setPhase('caught');
   };
+
+  // ====== PHÒNG CHƠI CHUNG ======
+  const roomCall = async (action, extra = {}) => {
+    const r = await api.room(action, { name: player?.name, token: player?.token, code: roomRef.current?.code, ...extra });
+    if (r.room) {
+      offsetRef.current = r.room.now - Date.now();
+      roomRef.current = r.room;
+      setRoom(r.room);
+    }
+    return r;
+  };
+
+  const roomAct = async (action, extra) => {
+    setRoomBusy(true);
+    setRoomErr('');
+    try {
+      const r = await roomCall(action, extra);
+      if (action === 'create' || action === 'join') setRoomCode(r.room.code);
+      return r;
+    } catch (e) {
+      setRoomErr(e.message);
+      return null;
+    } finally {
+      setRoomBusy(false);
+    }
+  };
+
+  const sendProgress = async (caught, tries = 3) => {
+    try { await roomCall('progress', { caught }); } catch {
+      if (tries > 1) later(() => sendProgress(caught, tries - 1), 1500);
+    }
+  };
+
+  const answerPuzzle = async (answer) => {
+    const r = await roomAct('answer', { answer });
+    if (r?.ok) { sfx.gong(); vibrate([60, 40, 200]); }
+    return r ? r.ok : null;
+  };
+
+  const leaveRoom = async () => {
+    try { if (roomRef.current) await api.room('leave', { name: player?.name, token: player?.token, code: roomRef.current.code }); } catch { /* bỏ qua */ }
+    clearTimeout(raceTimer.current);
+    roomRef.current = null;
+    setRoom(null);
+    setRoomCode(null);
+    setRacing(false);
+    clearGhosts();
+    setPhase('room');
+  };
+
+  const backToSolo = () => { setMode('solo'); setRoomErr(''); openIntro(); };
+
+  const beginRace = () => {
+    const rm = roomRef.current;
+    if (!rm || racingRef.current) return;
+    clearGhosts();
+    raceRng.current = seededRng(rm.seed);
+    const tw = TWISTS[rm.puzzle?.twist] || null;
+    twistRef.current = tw;
+    raceCfgRef.current = { ...RACE_CFG, ...(tw?.cfg || {}) };
+    sectorYaw.current = view.current.h + 100 + raceRng.current() * 160;
+    const omen = tw?.omen ? { ...NO_OMEN, ...tw.omen, tags: [] } : NO_OMEN;
+    setRun({ night: 0, caught: 0, bossPhase: 1, omen });
+    setStreak(0);
+    const solver = rm.puzzle?.solvedBy && rm.puzzle.solvedBy === player?.name;
+    setSave((s) => {
+      const items = { ...s.items };
+      if (tw?.gift) items[tw.gift] = Math.min(ITEMS[tw.gift].max, (items[tw.gift] || 0) + 1);
+      if (solver) items.bell = Math.min(ITEMS.bell.max, (items.bell || 0) + 1);
+      return { ...s, hp: MAX_HP, items };
+    });
+    if (solver) later(() => showToast('Thưởng người giải mật thư: +1 Chuông trấn hồn', 2200), 600);
+    setRacing(true);
+    sfx.knock();
+    setPhase('scan');
+  };
+
+  const endRace = () => {
+    clearTimeout(raceTimer.current);
+    setRacing(false);
+    clearGhosts();
+    setPhase('room');
+  };
+
+  // Hỏi máy chủ định kỳ khi đang ở trong phòng
+  useEffect(() => {
+    if (!roomCode) return undefined;
+    let alive = true;
+    const poll = async () => {
+      if (document.hidden) return;
+      try { await roomCall('state'); } catch (e) {
+        if (alive && (e.status === 404 || e.status === 403)) {
+          setRoomErr('Phòng đã đóng hoặc bạn đã rời phòng');
+          roomRef.current = null; setRoom(null); setRoomCode(null); endRace();
+        }
+      }
+    };
+    const t = setInterval(poll, ROOM_POLL_MS);
+    return () => { alive = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode]);
+
+  // Phản ứng theo trạng thái phòng: đếm ngược → vào đua, có người thắng → dừng
+  useEffect(() => {
+    if (!room || modeRef.current !== 'room') return;
+    if (room.status === 'race' && !racingRef.current) {
+      clearTimeout(raceTimer.current);
+      const wait = Math.max(0, room.raceStart - (Date.now() + offsetRef.current));
+      raceTimer.current = setTimeout(beginRace, wait);
+    }
+    if ((room.status === 'done' || room.status === 'lobby') && racingRef.current) {
+      if (room.status === 'done') {
+        const won = room.winner && room.players.find((p) => p.me)?.key === room.winner;
+        if (won) { sfx.gong(); vibrate([80, 40, 80, 40, 300]); } else sfx.angry();
+      }
+      endRace();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.status, room?.raceStart, room?.round]);
 
   // Bắt hụt → bùa cháy rụi, ma thoát ra và nổi điên
   const onBreakFree = (g) => {
@@ -931,7 +1164,8 @@ export default function App() {
   const onStageUp = (e) => { if (stageDrag.current?.id === e.pointerId) stageDrag.current = null; };
 
   // ====== GIAO DIỆN ======
-  const cfg = getNight(run.night);
+  const cfg = mode === 'room' ? raceCfgRef.current : getNight(run.night);
+  const rivals = mode === 'room' && room ? room.players.filter((p) => !p.me).slice(0, 3) : [];
   const empty = save.talismans.paper + save.talismans.gold === 0;
   const canThrow = phase === 'hunt' && !empty;
   const huntLike = HUNT.includes(phase);
@@ -943,9 +1177,10 @@ export default function App() {
   if (phase === 'seal') status = 'Phong ấn thành công';
   if (phase === 'attack') status = 'Nó đang lao tới!';
 
-  const appClass = ['app', scare && 'shaking', frenzy && huntLike && 'frenzy',
+  const appClass = ['app', lite && 'lite', scare && 'shaking', frenzy && huntLike && 'frenzy',
     fx.bell && 'fx-bell', fx.mirror && 'fx-mirror', fx.lamp && 'fx-lamp',
-    ...(run.omen?.tags || []).map((t) => `omen-${t.id}`)].filter(Boolean).join(' ');
+    ...(run.omen?.tags || []).map((t) => `omen-${t.id}`),
+    mode === 'room' && racing && twistRef.current?.dark && 'twist-dark'].filter(Boolean).join(' ');
   const boss = ghosts.find((g) => g.boss);
 
   const renderGhost = (g, key, decoy) => {
@@ -984,9 +1219,12 @@ export default function App() {
         <StartScreen
           player={player}
           nightsCleared={save.nightsCleared || 0}
+          lite={lite}
+          onToggleLite={() => setLite(!lite)}
           onLogin={login}
           onLogout={logout}
-          onStart={start}
+          onStart={() => start('solo')}
+          onStartRoom={() => start('room')}
           starting={starting}
         />
       )}
@@ -1032,7 +1270,7 @@ export default function App() {
           <header className="hud-top">
             <div className="hud-left">
               <div className="night-pill">
-                <span className="night-num">Đêm {run.night}</span>
+                <span className="night-num">{mode === 'room' ? 'Đua' : `Đêm ${run.night}`}</span>
                 <span className="pips" aria-label={`Đã phong ấn ${run.caught}/${cfg.quota}`}>
                   {Array.from({ length: cfg.quota }, (_, i) => <i key={i} className={i < run.caught ? 'on' : ''} />)}
                 </span>
@@ -1043,6 +1281,9 @@ export default function App() {
                 ))}
                 <small>Dương khí</small>
               </div>
+              {mode === 'room' && racing && twistRef.current && (
+                <div className="omen-pill witching">{twistRef.current.label}</div>
+              )}
               {streak >= 2 && <div className="streak-pill">Chuỗi {streak} <b>×{streakMult(streak).toFixed(1)}</b></div>}
               {run.omen?.tags.map((t) => <div key={t.id} className={`omen-pill ${t.id}`}>{t.label}</div>)}
             </div>
@@ -1133,6 +1374,41 @@ export default function App() {
               </p>
             )}
           </footer>
+
+          {mode === 'room' && racing && (
+            <div className="race-board" aria-label="Đối thủ">
+              {rivals.map((p) => (
+                <div key={p.key} className="rival">
+                  <span>{p.name}</span>
+                  <span className="pips">{Array.from({ length: room.quota }, (_, i) => <i key={i} className={i < p.caught ? 'on' : ''} />)}</span>
+                </div>
+              ))}
+              <button className="link-btn" onClick={leaveRoom}>Rời phòng</button>
+            </div>
+          )}
+
+          {phase === 'stunned' && (
+            <div className="stun-overlay"><h2>Bất tỉnh…</h2><p>Hồi lại sau vài giây. Đối thủ vẫn đang săn!</p></div>
+          )}
+          {phase === 'roomwait' && (
+            <div className="stun-overlay done"><h2>Đã phong ấn đủ!</h2><p>Đang chờ máy chủ xác nhận người về nhất…</p></div>
+          )}
+
+          {mode === 'room' && !racing && phase !== 'roomwait' && (
+            <RoomPanel
+              room={room}
+              offset={offsetRef.current}
+              busy={roomBusy}
+              error={roomErr}
+              onCreate={() => roomAct('create')}
+              onJoin={(c) => roomAct('join', { code: c })}
+              onStart={() => roomAct('start')}
+              onAnswer={answerPuzzle}
+              onReset={() => roomAct('reset')}
+              onLeave={leaveRoom}
+              onSolo={backToSolo}
+            />
+          )}
 
           {toast && <div key={toast.id} className="toast">{toast.text}</div>}
           {sealFx && <SealFX key={sealFx.id} x={sealFx.x} y={sealFx.y} />}

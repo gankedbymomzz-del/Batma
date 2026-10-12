@@ -103,6 +103,59 @@ Hai sự kiện cộng dồn được.
 |---|---|---|---|---|---|---|
 | Danh hiệu | Tập sự | Đạo sĩ | Pháp sư | Thiên sư | Chưởng môn | Tổ sư |
 
+## 4d. Phòng chơi chung
+
+Màn hình đầu → **Chơi cùng phòng** (cần ghi danh online).
+
+```
+Tạo phòng → mã 4 số → mọi người nhập mã → phòng chờ → chủ phòng bấm Bắt đầu
+   → CẢ PHÒNG CÙNG GIẢI 1 MẬT THƯ (ai đoán đúng trước, cả phòng qua màn)
+   → đếm ngược 6 giây → ĐUA PHONG ẤN 5 OAN HỒN → ai xong trước THẮNG
+   → chủ phòng mở ván mới (mật thư khác)
+```
+
+| Luật | Chi tiết |
+|---|---|
+| Số người | Tối đa 12 |
+| Mật thư | 4 phút, gợi ý 1 sau 1 phút, gợi ý 2 sau 2 phút, quá giờ tự qua màn |
+| Màn đua | Mọi người gặp **cùng một chuỗi ma**. 9 giây mỗi con, có chiêu riêng |
+| Cạn dương khí | Bất tỉnh 5 giây rồi săn tiếp, không bị loại |
+| Hết 6 phút | Ai phong ấn nhiều nhất thắng |
+| Chống gian lận | Máy chủ kiểm đáp án và quyết định người thắng |
+
+**12 mật thư** theo cốt truyện "Hồ sơ nhà số 7": chữ soi gương, dịch chữ, Morse, số thành chữ, đồng hồ, thơ giấu chữ đầu dòng, bát quái, đảo chữ, bàn phím điện thoại, chữ Hán Việt, câu đố logic. Mỗi ván rút một mật thư chưa chơi trong phòng đó.
+
+**Chi phí Upstash miễn phí** (500.000 lệnh/tháng): một trận 10 người khoảng 10–15 nghìn lệnh, đủ cho khoảng 30–40 trận/tháng.
+
+## 4e. Manh mối màn đua (phòng chơi)
+
+Đáp án mật thư là **manh mối** thay đổi luật màn đua. Người giải được thưởng +1 Chuông trấn hồn.
+
+| Mật thư → đáp án | Manh mối | Màn đua thay đổi |
+|---|---|---|
+| Soi gương → Đáy giếng | Từ đáy giếng | Ma trồi lên từ dưới thấp |
+| Dịch chữ → Cửa sau | Cửa sau | Ma xuất hiện sau lưng |
+| Morse → Cứu | Trong tủ áo | Phần lớn là ma bò sát sàn |
+| Dãy số → Tìm mẹ | Trốn tìm | Ma chỉ tiến lại khi bạn quay đi |
+| Đồng hồ → 12 giờ | Giờ Tý | Đại hung xuất hiện, XP ×1,25 |
+| Thơ → Tầng hầm | Tầng hầm | Tối om, phần lớn ma tàng hình |
+| Bát quái → Tây Bắc | Hướng Tây Bắc | Mọi con ma đến từ cùng một hướng |
+| Đảo chữ → Cô dâu | Gương tân hôn | Con nào cũng có bản giả |
+| Bàn phím → Bàn thờ | Bàn thờ | Tặng 1 nén nhang, dễ bắt hơn 10% |
+| Chữ Hán → Quỷ Môn | Quỷ Môn mở | Ma nhanh hơn, chỉ 7 giây mỗi con |
+| Logic → Đêm 6 | Sinh sôi | Có lúc 2 con cùng lúc |
+| Cầu thang → 5 | Mười lăm bậc | Bắt càng nhiều, ma càng nhanh |
+
+## 4f. Cốt truyện "Hồ sơ nhà số 7" (chơi đơn)
+
+- **Lời mở đầu:** lá thư mời không tên, hiện một lần trước đêm 1.
+- **Lời dẫn mỗi đêm** trên màn mở đầu đêm.
+- **7 trang nhật ký:** qua mỗi đêm nhặt một trang (cô hầu gái, cậu út, bà chủ, cô dâu, thầy địa lý, ông chủ nhà, trang cuối). Đọc lại trong Sổ Ma → tab Nhật ký.
+- **Lai lịch ma:** phong ấn một loại ma đủ 3 lần sẽ biết nó là ai lúc còn sống.
+- **Cái kết** mở ra khi hạ trùm đêm 7, và một chi tiết để ngỏ cho Đêm vô tận.
+
+Nội dung truyện khớp với 12 mật thư của chế độ phòng: hai chế độ cùng kể một câu chuyện.
+
 ## 5. Tuỳ chỉnh nhanh
 
 | Muốn sửa | File |
@@ -113,11 +166,21 @@ Hai sự kiện cộng dồn được.
 | Giá, tác dụng pháp khí, vàng mã nhận được | `src/items.js` |
 | Trùm (chiêu, thời gian từng giai đoạn) | `BOSS` trong `src/ghosts.js` |
 | Danh hiệu / Giờ Tý, trăng máu | `src/titles.js` / `src/omen.js` |
+| Mật thư (thêm, sửa, đáp án) | `api/_lib/puzzles.js` |
+| Manh mối màn đua | `src/twists.js` |
+| Cốt truyện, nhật ký, lai lịch ma | `src/story.js` |
+| Luật phòng (số người, thời gian, số ma) | Đầu file `api/room.js` |
 | Thời gian ma xuất hiện, vùng trúng, vòng tròn | Đầu file `src/App.jsx` |
 | Nhạc nền, âm thanh | `src/lib/music.js`, `src/lib/sound.js` |
 | Tiếng hét khi bị tấn công | Thay file `public/sfx/scream.mp3` (giữ nguyên tên) |
 | Số bùa, số Dương khí | `src/lib/storage.js` |
 | Luật chống hack điểm | `api/score.js` |
+
+## 5b. Hiệu năng & máy yếu
+
+- Camera chạy 720p/30 khung hình, đủ đẹp mà nhẹ hơn nhiều.
+- Ẩn app (về màn hình chính, chuyển app) → camera và âm thanh **tự tắt**, quay lại tự bật. Thoát hẳn trang → giải phóng toàn bộ.
+- **Chế độ nhẹ** tự bật khi máy chạy dưới 40 khung hình/giây: tắt nhiễu hạt, sương mù, bóng đổ của ma và vài hiệu ứng rung. Có thể bật/tắt tay ở màn hình đầu.
 
 ## 6. Lưu ý
 
@@ -129,7 +192,8 @@ Hai sự kiện cộng dồn được.
 
 ```
 san-ma/
-├── api/                   # Vercel Functions: ghi danh, gửi điểm, bảng xếp hạng
+├── api/                   # Vercel Functions: ghi danh, điểm, xếp hạng, phòng chơi
+│   └── _lib/puzzles.js    # Bộ mật thư (để ở máy chủ, người chơi không xem được đáp án)
 ├── public/ghosts/         # Ảnh ma (nền trong suốt)
 └── src/
     ├── App.jsx            # Lõi game: camera, cảm biến, ném bùa, ma tấn công
@@ -138,6 +202,8 @@ san-ma/
     ├── items.js           # Pháp khí, tiệm vàng mã
     ├── titles.js          # Danh hiệu thầy pháp
     ├── omen.js            # Giờ Tý, Đêm trăng máu
+    ├── twists.js          # Manh mối màn đua
+    ├── story.js           # Cốt truyện, nhật ký, lai lịch ma
     ├── components/        # Ghi danh, Sổ Ma, Bảng xếp hạng, thẻ phong ấn, màn đêm, hiệu ứng
     └── lib/               # Cảm biến, âm thanh, lưu trữ, gọi API
 ```

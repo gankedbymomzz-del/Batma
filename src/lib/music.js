@@ -105,6 +105,7 @@ function scheduler() {
 // Âm thanh ngẫu nhiên: hộp nhạc lạc tông, tiếng thì thầm, cửa kẽo kẹt, gõ cửa
 const MUSIC_BOX = [659.3, 698.5, 784, 830.6, 987.8, 1046.5, 1108.7];
 function creepyEvent() {
+  if (document.hidden) return;
   const r = Math.random();
   if (r < 0.32) {
     const n = 3 + Math.floor(Math.random() * 3);

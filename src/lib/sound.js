@@ -54,6 +54,11 @@ export function pauseAudio(hidden) {
   try { if (hidden) ctx.suspend(); else ctx.resume(); } catch { /* bỏ qua */ }
 }
 
+// Thoát hẳn trang: giải phóng toàn bộ âm thanh
+export function closeAudio() {
+  try { ctx?.close(); } catch { /* bỏ qua */ }
+}
+
 function out(pan) {
   if (pan && ctx.createStereoPanner) {
     const p = ctx.createStereoPanner();
@@ -65,7 +70,7 @@ function out(pan) {
 }
 
 export function tone(freq, dur, { type = 'sine', vol = 0.12, to = null, delay = 0, pan = 0, attack = 0.02 } = {}) {
-  if (!ctx) return;
+  if (!ctx || document.hidden) return;
   try {
     const t0 = ctx.currentTime + delay;
     const o = ctx.createOscillator();
@@ -83,7 +88,7 @@ export function tone(freq, dur, { type = 'sine', vol = 0.12, to = null, delay = 
 }
 
 export function noise(dur, { vol = 0.2, freq = 1200, q = 1, type = 'bandpass', delay = 0, to = null, pan = 0, attack = 0.03 } = {}) {
-  if (!ctx || !noiseBuf) return;
+  if (!ctx || !noiseBuf || document.hidden) return;
   try {
     const t0 = ctx.currentTime + delay;
     const src = ctx.createBufferSource();

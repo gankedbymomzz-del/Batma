@@ -3,7 +3,7 @@ import Ghost from './Ghost.jsx';
 import { GHOSTS } from '../ghosts.js';
 import { titleFor } from '../titles.js';
 
-export default function StartScreen({ player, nightsCleared = 0, onLogin, onLogout, onStart, starting }) {
+export default function StartScreen({ player, nightsCleared = 0, lite = false, onToggleLite, onLogin, onLogout, onStart, onStartRoom, starting }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -51,7 +51,14 @@ export default function StartScreen({ player, nightsCleared = 0, onLogin, onLogo
           <button className="btn-primary" onClick={onStart} disabled={starting}>
             {starting ? 'Đang mở camera…' : `Vào đêm ${nightsCleared + 1}`}
           </button>
+          <button className="btn-ghost room-btn" onClick={onStartRoom} disabled={starting || !player.token}>
+            Chơi cùng phòng
+          </button>
+          {!player.token && <small className="room-note">Chơi phòng cần ghi danh online (bảng xếp hạng đã bật)</small>}
           <button className="link-btn" onClick={onLogout}>Đổi tên</button>
+          <button className="link-btn lite-toggle" onClick={onToggleLite}>
+            Chế độ nhẹ cho máy yếu: {lite ? 'Đang bật' : 'Đang tắt'}
+          </button>
         </div>
       )}
 

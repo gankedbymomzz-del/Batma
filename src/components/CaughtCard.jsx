@@ -2,7 +2,7 @@ import Ghost from './Ghost.jsx';
 import { RARITY } from '../ghosts.js';
 
 export default function CaughtCard({ data, onClose }) {
-  const { def, xp, coins, levelUp, level, isNew, bonusPaper, hpGain, streak = 1 } = data;
+  const { def, xp, coins, levelUp, level, isNew, bonusPaper, hpGain, streak = 1, loreUnlocked } = data;
   const r = RARITY[def.rarity];
   return (
     <div className="modal center">
@@ -21,6 +21,7 @@ export default function CaughtCard({ data, onClose }) {
           {hpGain && <span>+1 Dương khí</span>}
           {levelUp && <span className="lv">Lên cấp {level}, tặng 3 Bùa Vàng</span>}
         </div>
+        {loreUnlocked && <p className="title-up">Mở khoá <b>lai lịch</b> của oan hồn này trong Sổ Ma</p>}
         <button className="btn-primary" onClick={onClose} autoFocus>Săn tiếp</button>
       </div>
     </div>
