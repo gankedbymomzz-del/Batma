@@ -1,241 +1,205 @@
-# 👻 Săn Ma AR
+# ♠ Poker Nhà Số 7
 
-Game săn ma thực tế ảo trên trình duyệt: mở camera, xoay điện thoại tìm ma, vuốt bùa phong ấn.
-Ma đứng lâu không bị bắt sẽ **lao tới tấn công**. Ghi danh bằng tên để **thi đua trên bảng xếp hạng**.
+Texas Hold'em No-Limit, thể thức Sit & Go cho 2–6 người. Chip ảo, chỉ để giải trí.
 
-React + Vite + Vercel Functions + Upstash Redis (miễn phí).
+**Trạng thái: Sòng bài 5 game — Poker, Bài cào 3 lá, Xì dách, Tiến lên miền Nam, Mậu binh.**
 
 ---
 
-## 1. Cập nhật lên GitHub (repo `san-ma` đã có)
+## Cập nhật: mật khẩu quản trị, đăng nhập tên + PIN, tự huỷ bàn
 
-1. Giải nén zip → thư mục `san-ma`.
-2. Vào repo trên GitHub → **Add file → Upload files**.
-3. Mở thư mục `san-ma`, **Ctrl + A** chọn tất cả bên trong, kéo thả vào trang → **Commit changes**.
-   File trùng tên sẽ được ghi đè. Thư mục mới `api/` và `public/ghosts/` tự được thêm.
+### Cài đặt 1 lần (bắt buộc)
 
-> Kiểm tra: repo phải có thư mục `api/` ngang hàng với `src/`.
+Vercel → project → **Settings → Environment Variables**:
 
-## 2. Bật bảng xếp hạng (làm 1 lần, ~2 phút)
-
-1. Vào Vercel → mở project `san-ma` → tab **Storage**.
-2. **Create Database** → chọn **Upstash** → **Upstash for Redis** → gói **Free** → Create.
-3. Chọn **Connect** vào project `san-ma` (giữ tick Production + Preview).
-4. Tab **Deployments** → bấm `⋯` ở bản mới nhất → **Redeploy**.
-
-Vercel tự gắn biến môi trường (`KV_REST_API_URL`, `KV_REST_API_TOKEN` hoặc `UPSTASH_REDIS_REST_*`), không cần chép tay.
-
-Chưa bật bước này game vẫn chơi được, người chơi ở chế độ **ngoại tuyến** (điểm lưu trên máy).
-
-## 3. Cách chơi
-
-Chơi theo **từng đêm**. Phong ấn đủ số oan hồn để thấy trời sáng. Cạn 3 Dương khí là chơi lại đêm đó.
-
-| Đêm | Số ma | Giây mỗi lần | Điểm mới |
-|---|---|---|---|
-| 1 | 3 | 10 | Chỉ ma Oán linh |
-| 2 | 4 | 9 | Lệ quỷ xuất hiện |
-| 3 | 5 | 8 | Ma có **chiêu riêng** |
-| 4 | 5 | 8 | **2 con cùng lúc** |
-| 5 | 6 | 7 | Có **bản giả** |
-| 6 | 6 | 6 | Đại hung thức giấc |
-| **7** | **Trùm** | 15 / 13 / 11 | Phong ấn 3 lần, mỗi lần đổi chiêu |
-| 8+ | 7–12 | 6 → 4,5 | **Đêm vô tận**, mỗi đêm khó hơn |
-
-| Thao tác | Kết quả |
+| Tên | Giá trị |
 |---|---|
-| Vuốt bùa lên phía ma | Ném bùa, ném lúc vòng tròn **xanh lá** để tỷ lệ ×1.6 |
-| Phong ấn thành công | Tiếng chiêng, vòng ấn chú, dấu triện 封印, hồi 1 Dương khí |
-| Bắt hụt | Bùa cháy rụi, ma nổi điên, còn tối đa 5 giây |
-| Ném trúng bản giả | Bản giả tan biến, mất bùa và 1 giây |
-| Hết giờ | Ma lao tới kèm tiếng hét, mất 1 Dương khí |
+| `ADMIN_PASSWORD` | Mật khẩu để mở bàn, **nên dài từ 8 ký tự**, ví dụ `NhaSo7@2026` |
 
-Bảng xếp hạng: **số đêm đã qua** trước, rồi mới tới XP.
+Xoá biến `ADMIN_NAMES` cũ nếu có (không dùng nữa). Save → **Deployments → Redeploy**.
 
-## 4. Chiêu riêng của từng con ma (từ Đêm 3)
+### Đăng nhập
 
-Trong game không hiện tên. Chiêu được ghi vào Sổ Ma sau lần bắt đầu tiên.
+- Lần đầu: đặt **tên + mã PIN** (4–8 số).
+- Lần sau, ở **máy nào cũng được**, nhập đúng tên + PIN là vào.
+- Tài khoản tạo trước bản này: nhập tên cũ + PIN mới là nhận lại được (kèm thành tích).
 
-| Ma | Độ hiếm | Chiêu | Cách khắc chế |
-|---|---|---|---|
-| Bóng Trắng Cuối Hành Lang | Oán linh | Chỉ tiến lại gần khi bạn không nhìn, thời gian trôi gấp đôi | Tìm nhanh, giữ nó trong khung hình |
-| Oan Hồn Tóc Rũ | Oán linh | Tàng hình khi bạn xoay máy | Giữ máy thật yên |
-| Nữ Quỷ Gầm Tủ | Lệ quỷ | Bò sát sàn nhà | Hạ máy xuống |
-| Ma Nữ Cầu Thang | Đại hung | Phân thân 3, đổi chỗ liên tục | Con thật có mắt sáng rực, bản giả mờ hơn |
-| Bé Gái Áo Trắng | Oán linh | Thỉnh thoảng thét, bùa ném lúc đó bị hất văng | Chờ nó im rồi ném |
-| Mặt Quỷ Trong Sương | Lệ quỷ | Tan vào sương rồi hiện lại theo nhịp | Ném lúc hiện rõ, hoặc thắp Đèn dầu |
-| Quỷ Nanh Mắt Trắng | Đại hung | Định kỳ vồ tới mặt, vồ trúng mất 1,5 giây | Ném đúng lúc nó lao tới (to, dễ trúng) |
+### Mở bàn và mời
 
-## 4b. Vàng mã & pháp khí
+Bấm **Mở bàn mới** → nhập mật khẩu quản trị (có thể tick "Ghi nhớ trên máy này") → ở phòng chờ bấm **Sao chép link mời** gửi mọi người. Người khác vào bàn bằng link mời; đoán mã 4 số mà không có link thì không vào được.
 
-Phong ấn ma và sống sót qua đêm để kiếm **vàng mã**. Trước mỗi đêm, vào **Tiệm vàng mã** để chuẩn bị.
+### Bàn tự huỷ
 
-| Pháp khí | Giá | Tác dụng | Khắc chế |
-|---|---|---|---|
-| 🔔 Chuông trấn hồn | 40 | Mọi con ma và đồng hồ dừng 2,5 giây | Ma chạy nhanh, sắp hết giờ |
-| 🪞 Gương bát quái | 50 | 5 giây: bản giả bị gạch ✕, con thật sáng vàng | Ma Nữ Cầu Thang, bản giả |
-| 🪔 Đèn dầu | 35 | 4 giây: ma không thể tàng hình | Oan Hồn Tóc Rũ |
-| 🕯️ Nén nhang | 45 | Hồi 1 dương khí ngay giữa đêm | Cứu nguy |
-
-Mỗi món mang tối đa 3. Tiệm cũng bán 5 Bùa Giấy (20) và 1 Bùa Vàng (30).
-Thanh pháp khí nằm bên trái màn hình, chạm để dùng.
-
-| Nguồn vàng mã | Số lượng |
+| Trường hợp | Kết quả |
 |---|---|
-| Oán linh / Lệ quỷ / Đại hung | 10 / 25 / 60, tăng 10% mỗi đêm |
-| Qua đêm N | 30 × N |
+| Một người rời giữa ván | Bàn vẫn chạy, máy tự bỏ bài thay người đó |
+| **Người cuối cùng rời bàn** | Bàn huỷ ngay, không chạy ẩn |
+| Không có hoạt động quá 30 phút (mọi người tắt máy mà không bấm Rời bàn) | Tự dọn |
 
-## 4c. Trùm, chuỗi, giờ thật, danh hiệu
+## Cập nhật: chat, ném icon, vay chip
 
-**Trùm đêm 7:** 3 giai đoạn. Phong ấn xong một lần, trùm lột xác và đổi chiêu: bản giả → tàng hình → bò sát sàn. Bị tấn công thì trùm quay lại nhưng **giữ nguyên tiến độ**. Hạ trùm: +500 XP, +200 vàng mã.
+Không cần chạy SQL. Upload thư mục mới lên GitHub là xong.
 
-**Chuỗi phong ấn:** bắt liên tiếp không hụt, XP và vàng mã nhân dần (tối đa ×2), nhưng ma cũng nhanh dần. Trượt, ném trúng bản giả, ma phá bùa hoặc bị tấn công đều mất chuỗi.
+| Tính năng | Cách dùng |
+|---|---|
+| **Chat** | Nút 💬 trên thanh trên (có số tin chưa đọc). Biểu cảm, câu nói nhanh, tin nhắn hiện thành bong bóng cạnh ghế |
+| **Ném icon** | **Chạm vào ghế người khác** → chọn 🍅 🌹 🥚 💣 🍺 💋 👏 💩, icon bay ngang bàn |
+| **Vay chip** | Nút 💰 (Poker, Bài cào, Xì dách) → chọn người, số chip → người kia bấm Cho vay / Từ chối |
+| **Trả nợ** | 💰 → Sổ nợ → Trả hết |
 
-**Giờ thật** (theo đồng hồ điện thoại, xét lúc bắt đầu mỗi đêm):
+Luật vay: chip chỉ chuyển **khi hết ván** (không chuyển giữa ván để không phá luật cược). Người cho vay và người trả luôn giữ lại ít nhất 1 chip. Hết chip mà được vay thì **vào chơi lại**. Lời hỏi vay tự hết hạn sau 90 giây. Sổ nợ xoá khi mở giải mới.
 
-| Sự kiện | Khi nào | Hiệu ứng |
-|---|---|---|
-| Giờ Tý | 23h – 3h sáng | Đại hung gấp đôi, XP ×1,25, camera tối lạnh |
-| Đêm trăng máu | Thứ bảy 18h – Chủ nhật 4h | XP và vàng mã ×1,5, ma hung hơn, nhuốm đỏ |
+Chống phá: 0,7 giây/tin chat, 1,2 giây/lần ném icon, tự che từ thô tục.
 
-Hai sự kiện cộng dồn được.
+## Cập nhật: 5 game bài
 
-**Danh hiệu thầy pháp** (hiện trên bảng xếp hạng và màn hình đầu):
+Không cần chạy thêm SQL. Chỉ cần upload thư mục mới lên GitHub.
 
-| Số đêm đã qua | 0 | 2 | 4 | 7 (hạ trùm) | 10 | 15 |
-|---|---|---|---|---|---|---|
-| Danh hiệu | Tập sự | Đạo sĩ | Pháp sư | Thiên sư | Chưởng môn | Tổ sư |
+**Cách chơi:** tạo bàn như cũ → ở phòng chờ, **chủ bàn chọn game và số ván** → Bắt đầu. Hết giải, chủ bàn có thể đổi sang game khác cho ván sau.
 
-## 4d. Phòng chơi chung
+| Game | Số người | Thể thức | Tính |
+|---|---|---|---|
+| Poker Texas Hold'em | 2–6 | Sit & Go, loại trực tiếp | Chip |
+| Bài cào 3 lá | 2–6 | Nhà cái xoay vòng, đặt cược ×1–×3, nặn bài | Chip |
+| Xì dách | 2–6 | Nhà cái xoay vòng, rút/dằn | Chip |
+| Tiến lên miền Nam | 2–4 | 13 lá, chặt heo, tới trắng | Điểm |
+| Mậu binh | 2–4 | Xếp 3 chi, so chi, sập hầm, binh lủng | Điểm (chi) |
 
-Màn hình đầu → **Chơi cùng phòng** (cần ghi danh online).
+Mỗi bàn có nút **Luật chơi** giải thích chi tiết luật đang dùng. Luyện tập với máy có đủ 5 game.
+
+### Luật đã chọn (có thể chỉnh trong `engine/games/<tên game>.js`)
+
+- **Bài cào:** điểm = tổng nút lấy hàng đơn vị, 3 Tây lớn nhất và ăn gấp đôi, bằng điểm thì hoà.
+- **Xì dách:** Xì bàng > Xì dách > Ngũ linh > điểm. Con dưới 16 không được dằn, nhà cái dưới 15 phải rút. Quắc gặp quắc thì hoà. Xì bàng, Xì dách, Ngũ linh ăn gấp đôi.
+- **Tiến lên:** 3 đôi thông/tứ quý chặt 1 heo; tứ quý/4 đôi thông chặt đôi heo. Heo đen 1 điểm, heo đỏ 2 điểm. Tới trắng: tứ quý heo, sảnh rồng, 6 đôi, 5 đôi thông. Điểm 4 người: +3, +1, −1, −3.
+- **Mậu binh:** binh lủng thua 6 chi mỗi người. Sập hầm nhân đôi. Thưởng chi: chi đầu sám ×3; chi giữa cù lũ ×2, tứ quý ×8, thùng phá sảnh ×10; chi cuối tứ quý ×4, thùng phá sảnh ×5. Tới trắng: sảnh rồng, 6 đôi.
+
+### Kiểm thử
+
+`npm test` chạy 39 kiểm thử: luật từng game, chặt heo, binh lủng, sập hầm, Át trong xì dách, và giả lập 60 giải đấu mỗi game giữa các bot để kiểm tra chip/điểm luôn bảo toàn.
+
+---
+
+## Cập nhật mới nhất: làm gì ngay
+
+### 1. Chạy thêm 1 file SQL (bật lưu thành tích)
+
+Supabase → **SQL Editor** → **New query** → mở file `supabase/02_thanh_tich.sql` trong thư mục này, copy toàn bộ, dán vào → **Run**.
+
+Chưa chạy file này game vẫn chơi bình thường, chỉ là chưa lưu thành tích và Bảng vàng sẽ báo chưa bật.
+
+### 2. Cập nhật GitHub
+
+Upload toàn bộ thư mục `poker` mới như mọi lần. Vercel tự deploy.
+
+### Có gì mới
+
+| Phần | Chi tiết |
+|---|---|
+| **Thành tích** | Lưu số giải, số lần vô địch, top 3, hạng tốt nhất, tổng số ván. Hiện ở màn hình chính |
+| **Bảng vàng** | Top 20 người chơi theo số lần vô địch |
+| **Chia bài** | Bộ bài đặt giữa bàn, từng lá bay tới từng ghế theo đúng thứ tự từ trái nút Dealer |
+| **Lật bài** | Bài của bạn úp, viền nhấp nháy, **chạm từng lá để lật**. Bài chung và bài đối thủ lật 3D |
+| **Âm thanh** | Chia bài, lật bài, chip, gõ bàn khi nhường, báo tới lượt, nhạc thắng |
+| **Cài đặt** (nút ⚙) | Bật/tắt âm thanh, bật "Tự lật bài" nếu không thích chạm |
+| **Giao diện** | Bàn viền gỗ, nỉ có vân, lá bài có góc chỉ số, chip, nhãn "Tới lượt bạn", màn kết quả có cúp |
+
+---
+
+## Bước 2 (hiện tại): làm gì ngay
+
+### Điều kiện đã có (đã làm ở bước trước)
+
+- Supabase đã chạy đoạn SQL tạo 3 bảng `poker_users`, `poker_rooms`, `poker_signals`.
+- Vercel đã có 3 biến môi trường: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY` (tick Production + Preview).
+
+### 1. Cập nhật lên GitHub
+
+Repo `poker-nha-so-7` → **Add file → Upload files** → kéo thả toàn bộ nội dung thư mục `poker` mới → **Commit changes**.
+Thư mục mới `api/` phải nằm ngang hàng với `src/` và `engine/`.
+
+Vercel tự deploy lại. Máy chủ được đặt ở **Tokyo** (`vercel.json`) cho cùng vùng với Supabase.
+
+### 2. Kiểm tra máy chủ đã nhận cấu hình
+
+Mở `https://<link-của-bạn>/api/poker?action=config`
+
+| Thấy | Ý nghĩa |
+|---|---|
+| `{"url":"https://anazdqhjnbujaczoqwxy.supabase.co","publishableKey":"sb_publishable_…"}` | ✅ Đúng |
+| `url` hoặc `publishableKey` rỗng | Thiếu biến trên Vercel, hoặc chưa Redeploy sau khi thêm biến |
+
+### 3. Chơi thử với 2–3 người
+
+1. Người thứ nhất: ghi danh → **Tạo bàn mới** → nhận mã 4 số.
+2. Người khác: ghi danh → nhập mã → **Vào bàn**. Chạm ghế trống để đổi chỗ.
+3. Chủ bàn bấm **Bắt đầu giải**.
+
+Chấm tròn cạnh mã bàn: **xanh lá** = cập nhật tức thì qua Supabase Realtime. **Xám** = đang dùng chế độ dự phòng (hỏi máy chủ 2 giây/lần), vẫn chơi được nhưng chậm hơn.
+
+### Khi gặp lỗi
+
+| Hiện tượng | Cách xử lý |
+|---|---|
+| "Máy chủ chưa cấu hình Supabase" | Thiếu `SUPABASE_URL` hoặc `SUPABASE_SECRET_KEY` trên Vercel → thêm rồi Redeploy |
+| "Invalid API key" / lỗi 401 khi ghi danh | Dán nhầm khoá: `SUPABASE_SECRET_KEY` phải là khoá `sb_secret_…` |
+| Lỗi "relation poker_users does not exist" | Chưa chạy đoạn SQL tạo bảng |
+| Chấm tròn luôn xám | Kiểm tra `SUPABASE_PUBLISHABLE_KEY`, và trong Supabase: Database → Publications → `supabase_realtime` có bảng `poker_signals` |
+
+---
+
+## Cách hệ thống hoạt động
 
 ```
-Tạo phòng → mã 4 số → mọi người nhập mã → phòng chờ → chủ phòng bấm Bắt đầu
-   → CẢ PHÒNG CÙNG GIẢI 1 MẬT THƯ (ai đoán đúng trước, cả phòng qua màn)
-   → đếm ngược 6 giây → ĐUA PHONG ẤN 5 OAN HỒN → ai xong trước THẮNG
-   → chủ phòng mở ván mới (mật thư khác)
+Điện thoại  ──"tôi tố 200"──►  Vercel (Tokyo)  ──đọc/ghi──►  Supabase poker_rooms (bộ bài, bài tẩy: CHỈ máy chủ đọc được)
+     ▲                              │
+     │                              └──ghi số phiên bản──►  poker_signals ──Realtime──┐
+     └──────── "bàn vừa đổi" ◄────────────────────────────────────────────────────────┘
+     └── hỏi lại máy chủ → nhận ĐÚNG phần mình được xem (bài của mình + bài đã lật)
 ```
 
-| Luật | Chi tiết |
-|---|---|
-| Số người | Tối đa 12 |
-| Mật thư | 4 phút, gợi ý 1 sau 1 phút, gợi ý 2 sau 2 phút, quá giờ tự qua màn |
-| Màn đua | Mọi người gặp **cùng một chuỗi ma**. 9 giây mỗi con, có chiêu riêng |
-| Cạn dương khí | Bất tỉnh 5 giây rồi săn tiếp, không bị loại |
-| Hết 6 phút | Ai phong ấn nhiều nhất thắng |
-| Chống gian lận | Máy chủ kiểm đáp án và quyết định người thắng |
+- Hai người bấm cùng lúc: máy chủ ghi có kiểm tra phiên bản, người sau tự thử lại, không mất hành động.
+- Hết giờ 20 giây: điện thoại tự "đánh thức" máy chủ đúng lúc, máy chủ tự Nhường hoặc Bỏ bài.
+- Tải lại trang giữa giải: tự vào lại đúng bàn, đúng ghế.
+- Rời bàn giữa giải: chuyển sang "Tạm vắng", máy tự bỏ bài thay. Bấm **Quay lại bàn** để chơi tiếp.
+- Bàn bỏ hoang quá 1 ngày tự được dọn.
 
-**12 mật thư** theo cốt truyện "Hồ sơ nhà số 7": chữ soi gương, dịch chữ, Morse, số thành chữ, đồng hồ, thơ giấu chữ đầu dòng, bát quái, đảo chữ, bàn phím điện thoại, chữ Hán Việt, câu đố logic. Mỗi ván rút một mật thư chưa chơi trong phòng đó.
+## Luật chơi tóm tắt
 
-**Chi phí Upstash miễn phí** (500.000 lệnh/tháng): một trận 10 người khoảng 10–15 nghìn lệnh, đủ cho khoảng 30–40 trận/tháng.
-
-## 4e. Manh mối màn đua (phòng chơi)
-
-Đáp án mật thư là **manh mối** thay đổi luật màn đua. Người giải được thưởng +1 Chuông trấn hồn.
-
-| Mật thư → đáp án | Manh mối | Màn đua thay đổi |
-|---|---|---|
-| Soi gương → Đáy giếng | Từ đáy giếng | Ma trồi lên từ dưới thấp |
-| Dịch chữ → Cửa sau | Cửa sau | Ma xuất hiện sau lưng |
-| Morse → Cứu | Trong tủ áo | Phần lớn là ma bò sát sàn |
-| Dãy số → Tìm mẹ | Trốn tìm | Ma chỉ tiến lại khi bạn quay đi |
-| Đồng hồ → 12 giờ | Giờ Tý | Đại hung xuất hiện, XP ×1,25 |
-| Thơ → Tầng hầm | Tầng hầm | Tối om, phần lớn ma tàng hình |
-| Bát quái → Tây Bắc | Hướng Tây Bắc | Mọi con ma đến từ cùng một hướng |
-| Đảo chữ → Cô dâu | Gương tân hôn | Con nào cũng có bản giả |
-| Bàn phím → Bàn thờ | Bàn thờ | Tặng 1 nén nhang, dễ bắt hơn 10% |
-| Chữ Hán → Quỷ Môn | Quỷ Môn mở | Ma nhanh hơn, chỉ 7 giây mỗi con |
-| Logic → Đêm 6 | Sinh sôi | Có lúc 2 con cùng lúc |
-| Cầu thang → 5 | Mười lăm bậc | Bắt càng nhiều, ma càng nhanh |
-
-## 4f. Cốt truyện "Hồ sơ nhà số 7" (chơi đơn)
-
-- **Lời mở đầu:** lá thư mời không tên, hiện một lần trước đêm 1.
-- **Lời dẫn mỗi đêm** trên màn mở đầu đêm.
-- **7 trang nhật ký:** qua mỗi đêm nhặt một trang (cô hầu gái, cậu út, bà chủ, cô dâu, thầy địa lý, ông chủ nhà, trang cuối). Đọc lại trong Sổ Ma → tab Nhật ký.
-- **Lai lịch ma:** phong ấn một loại ma đủ 3 lần sẽ biết nó là ai lúc còn sống.
-- **Cái kết** mở ra khi hạ trùm đêm 7, và một chi tiết để ngỏ cho Đêm vô tận.
-
-Nội dung truyện khớp với 12 mật thư của chế độ phòng: hai chế độ cùng kể một câu chuyện.
-
-## 4g. Trò chuyện trong phòng
-
-- **Phòng chờ, lúc giải mật thư, màn kết quả:** khung chat ngay trong bảng phòng (thu gọn được).
-- **Lúc đang đua:** nút 💬 trên góc phải (có số tin chưa đọc), tin mới hiện thành bong bóng 5 giây trên màn hình.
-- **Biểu cảm** 😱 😂 🔥 👏 👻 🙏 bay lên màn hình của cả phòng.
-- **Câu nói nhanh:** "Cứu tôi!", "Ma sau lưng!", "Hạ máy xuống!"… bấm một chạm khi đang đua.
-- **Tin hệ thống** tự báo diễn biến: ai vào/rời phòng, ai giải được mật thư, ai **chỉ còn 1 con**, ai thắng.
-- Tối đa 120 ký tự, chống spam (0,8 giây/tin), tự che từ thô tục cơ bản. Giữ 60 tin gần nhất, xoá cùng phòng.
-
-## 4h. An toàn, hướng dẫn, lời nguyền
-
-**Cảnh báo an toàn** hiện mỗi lần bắt đầu chơi: đứng yên chỉ xoay người, khoảng trống 2 mét, không chơi gần cầu thang, kệ hàng, lối xe nâng.
-
-**Hướng dẫn tương tác** cho người mới (sau lời mở đầu): một con ma hiền, không giới hạn thời gian. Lời nhắc từng bước (tìm ma → vuốt bùa → canh vòng xanh) và ngón tay chỉ cách vuốt. Bỏ qua được, xem lại được ở màn hình đầu. Người chơi cũ tự động bỏ qua.
-
-**Lời nguyền** (phòng chơi, nút 💀 khi đang đua):
-
-| Lời nguyền | Giá | Tác dụng |
-|---|---|---|
-| 🌑 Màn đêm | 20 | Màn hình đối thủ tối sầm 3 giây |
-| 🚪 Gõ cửa | 10 | Tiếng gõ dồn dập, rung, rung màn hình bên đối thủ |
-| 🎁 Tặng bùa | 15 | Tặng 1 Bùa Vàng cho người khác |
-
-Mỗi người hồi chiêu 12 giây, người vừa bị nguyền được miễn nhiễm 8 giây. Cả phòng thấy ai nguyền ai trong khung chat.
-
-## 5. Tuỳ chỉnh nhanh
-
-| Muốn sửa | File |
-|---|---|
-| Tên, mô tả, tỷ lệ bắt, chiêu riêng của ma | `src/ghosts.js` |
-| Thêm ma mới | Ảnh PNG/WebP nền trong suốt vào `public/ghosts/`, khai báo trong `src/ghosts.js` |
-| Số ma, thời gian bắt, tốc độ… của từng đêm | `src/nights.js` |
-| Giá, tác dụng pháp khí, vàng mã nhận được | `src/items.js` |
-| Trùm (chiêu, thời gian từng giai đoạn) | `BOSS` trong `src/ghosts.js` |
-| Danh hiệu / Giờ Tý, trăng máu | `src/titles.js` / `src/omen.js` |
-| Mật thư (thêm, sửa, đáp án) | `api/_lib/puzzles.js` |
-| Manh mối màn đua | `src/twists.js` |
-| Cốt truyện, nhật ký, lai lịch ma | `src/story.js` |
-| Luật phòng (số người, thời gian, số ma) | Đầu file `api/room.js` |
-| Chat: biểu cảm, từ bị chặn, số tin lưu | Phần CHAT trong `api/room.js` |
-| Câu nói nhanh | `src/components/RoomChat.jsx` |
-| Giá lời nguyền / hồi chiêu, miễn nhiễm | `src/curses.js` / phần LỜI NGUYỀN trong `api/room.js` |
-| Nội dung cảnh báo an toàn | `src/components/SafetyCard.jsx` |
-| Thời gian ma xuất hiện, vùng trúng, vòng tròn | Đầu file `src/App.jsx` |
-| Nhạc nền, âm thanh | `src/lib/music.js`, `src/lib/sound.js` |
-| Tiếng hét khi bị tấn công | Thay file `public/sfx/scream.mp3` (giữ nguyên tên) |
-| Số bùa, số Dương khí | `src/lib/storage.js` |
-| Luật chống hack điểm | `api/score.js` |
-
-## 5b. Hiệu năng & máy yếu
-
-- Camera chạy 720p/30 khung hình, đủ đẹp mà nhẹ hơn nhiều.
-- Ẩn app (về màn hình chính, chuyển app) → camera và âm thanh **tự tắt**, quay lại tự bật. Thoát hẳn trang → giải phóng toàn bộ.
-- **Chế độ nhẹ** tự bật khi máy chạy dưới 40 khung hình/giây: tắt nhiễu hạt, sương mù, bóng đổ của ma và vài hiệu ứng rung. Có thể bật/tắt tay ở màn hình đầu.
-
-## 6. Lưu ý
-
-- Mở bằng **Safari / Chrome**, không mở trong Zalo, Facebook (thường chặn camera).
-- Tên gắn với trình duyệt đã ghi danh. Đổi máy hoặc xoá dữ liệu trình duyệt sẽ không lấy lại được tên cũ.
-- Chạy thử trên máy: `npm install` rồi `npm run dev` (bảng xếp hạng chỉ chạy trên Vercel, local sẽ là ngoại tuyến).
+- 1.500 chip mỗi người. Blind 10/20, tăng mỗi 6 phút: 15/30 → 25/50 → 50/100 → 75/150 → 100/200 …
+- Mỗi người 2 lá tẩy + 5 lá chung, ghép 5 lá tốt nhất.
+- 4 vòng cược: Preflop, Flop (3 lá), Turn (1 lá), River (1 lá), rồi lật bài.
+- Tố tối thiểu = mức cược hiện tại + mức tố gần nhất. All-in thiếu không mở lại quyền tố cho người đã hành động.
+- Hết chip là bị loại. Người cuối cùng còn chip vô địch.
 
 ## Cấu trúc
 
 ```
-san-ma/
-├── api/                   # Vercel Functions: ghi danh, điểm, xếp hạng, phòng chơi
-│   └── _lib/puzzles.js    # Bộ mật thư (để ở máy chủ, người chơi không xem được đáp án)
-├── public/ghosts/         # Ảnh ma (nền trong suốt)
-└── src/
-    ├── App.jsx            # Lõi game: camera, cảm biến, ném bùa, ma tấn công
-    ├── ghosts.js          # Danh sách ma + chiêu riêng
-    ├── nights.js          # Cấu hình độ khó từng đêm
-    ├── items.js           # Pháp khí, tiệm vàng mã
-    ├── titles.js          # Danh hiệu thầy pháp
-    ├── omen.js            # Giờ Tý, Đêm trăng máu
-    ├── twists.js          # Manh mối màn đua
-    ├── story.js           # Cốt truyện, nhật ký, lai lịch ma
-    ├── components/        # Ghi danh, Sổ Ma, Bảng xếp hạng, thẻ phong ấn, màn đêm, hiệu ứng
-    └── lib/               # Cảm biến, âm thanh, lưu trữ, gọi API
+poker/
+├── engine/                 # LÕI LUẬT — thuần JavaScript, bước 2 dùng nguyên ở máy chủ
+│   ├── cards.js            # Bộ bài, trộn bài (có bản mật mã cho máy chủ)
+│   ├── evaluate.js         # Chấm điểm bài, tên bài tiếng Việt
+│   ├── pots.js             # Hũ chính, hũ phụ, chia chip lẻ
+│   ├── game.js             # Máy cược No-Limit, lượt nói, loại người chơi, tăng blind
+│   ├── games/              # Khuôn chung + luật Bài cào, Xì dách, Tiến lên, Mậu binh
+│   ├── bots.js             # Người chơi máy
+│   └── tests/              # 23 kiểm thử + giả lập hàng nghìn ván
+├── api/
+│   ├── poker.js            # API bàn chơi: ghi danh, tạo/vào bàn, chọn ghế, hành động
+│   └── _lib/db.js          # Kết nối Supabase (chỉ chạy ở máy chủ)
+├── src/
+│   ├── App.jsx             # Màn hình chính
+│   ├── OnlineGame.jsx      # Chơi phòng: phòng chờ, bàn chơi, nghe tín hiệu
+│   ├── PracticeGame.jsx    # Luyện tập với máy (cả 5 game)
+│   ├── games/              # Bàn chơi từng game: DealerTable, TienLenTable, MauBinhTable
+│   └── Table.jsx           # Bàn chơi dùng chung cho cả 2 chế độ
+└── vercel.json             # Đặt máy chủ ở Tokyo
 ```
+
+## Lộ trình
+
+| Bước | Nội dung | Trạng thái |
+|---|---|---|
+| 1 | Lõi luật + kiểm thử + bàn thử với máy | ✅ |
+| 2 | Phòng nhiều người: máy chủ Vercel + Supabase Realtime, chọn ghế, chơi thật | ✅ |
+| 3 | Hoàn thiện: bấm trước, thời gian dự phòng, lịch sử ván, chat, âm thanh, hiệu ứng | Tiếp theo |

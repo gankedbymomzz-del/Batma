@@ -1,16 +1,18 @@
 {
-  "name": "san-ma-ar",
+  "name": "poker-nha-so-7",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test \"engine/tests/*.test.js\""
   },
   "dependencies": {
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "@supabase/supabase-js": "2.117.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.4",
